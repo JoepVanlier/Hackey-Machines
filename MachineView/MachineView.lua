@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.07
+@version 0.08
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -24,6 +24,10 @@
 
 --[[
  * Changelog:
+ * v0.08 (2018-08-06)
+   + Added ability to add machines from a menu (outer mouse button). Still requires user to 
+     make machine list. Should split file out at some point to allow customization per user without
+     it interfering with what is being updated in the repo.
  * v0.07 (2018-08-05)
    + Added ability to route from nested track to master (reorganizing the tracklist)
  * v0.06 (2018-08-05)
@@ -59,7 +63,7 @@ machineView.config.muteWidth = 14
 machineView.config.muteHeight = 7
 
 FXlist = {
-  instruments = {
+  Instruments = {
     "Kontakt",
     "Play",
     "VacuumPro",  
@@ -84,19 +88,19 @@ FXlist = {
     "polyIblit",
     "dmiHammer"
   },
-  drums = {
+  Drums = {
     "Battery 4",
     "VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)",
     "Kickbox",
     
   },
-  effects = {
-    eq = {
+  Effects = {
+    EQ = {
       "ReaEq",
       "BootEQmkII",
       "VST3: OneKnob Phatter Stereo"
     },
-    filter = {
+    Filter = {
       "BiFilter",
       "MComb",
       "AtlantisFilter",
@@ -106,7 +110,7 @@ FXlist = {
       "Chebyshev 4-Pole Filter",
       "JS: Exciter",
     },
-    modulation = {
+    Modulation = {
       "Chorus (Improved Shaping)",
       "Chorus (Stereo)",
       "Chorus CH-1",
@@ -116,7 +120,7 @@ FXlist = {
       "VST3: MPhaser",
       "VST3: Tremolo",
     },
-    dynamics = {
+    Dynamics = {
       "VST3: API-2500 Stereo",
       "VST3: L1 limiter Stereo",
       "VST3: TransX Wide Stereo",
@@ -125,7 +129,7 @@ FXlist = {
       "ReaXComp",
       "VST3: Percolate",
     },
-    distortion = {
+    Distortion = {
       "Amplitube 3",
       "Renegade",
       "VST3: MSaturator", 
@@ -135,7 +139,7 @@ FXlist = {
       "Cyanide 2",
       "Driver",
     },    
-    reverb = {
+    Reverb = {
       "ReaVerb",
       "VST3: IR-L full Stereo",
       "VST3: H-Reverb Stereo/5.1",
@@ -146,40 +150,40 @@ FXlist = {
       "Hexaline",
       "ModernFlashVerb",
     },    
-    delay = {
+    Delay = {
       "ReaDelay",
       "VST3: H-Delay Stereo",
       "VST3: STA Delay",
       "MjRotoDelay",
       "ModernSpacer",
     },
-    mastering = {
+    Mastering = {
       "VST3: Drawmer S73",
       "VST3: L1+ Ultramaximizer Stereo",
       "VST3: Elephant",
     },
-    strip = {
+    Strip = {
       "VST3: Scheps Omni Channel Stereo",
       "VST3: SSLGChannel Stereo",
     },
-    stereo = {
+    Stereo = {
       "VST3: S1 Imager Stereo",
       "VST3: MSpectralPan",
       "VST3: MStereoExpander",
       "VST3: Propane",
       "Saike StereoManipulator",
     },
-    gate = {
+    Gate = {
       "ReaGate",
     },
-    pitch = {
+    Pitch = {
       "ReaPitch",
       "ReaTune",
     },
-    vocoder = {
+    Vocoder = {
       "mda Talkbox",
     },
-    analysis = {
+    Analysis = {
       "SideSpectrum Meter"
     },
   },
@@ -219,6 +223,10 @@ end
 -- Print contents of `tbl`, with indentation.
 -- `indent` sets the initial level of indentation.
 function tprint (tbl, indent, maxindent, verbose)
+  if ( not tbl ) then
+    print( "nil" )
+    return
+  end
   if ( type(tbl) == "table" ) then 
     if not maxindent then maxindent = 2 end
     if not indent then indent = 0 end
@@ -704,13 +712,13 @@ function box_ctrls.create(viewer, x, y, track, parent)
   self.ctrls[2] = button.create(self, .50*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, muteCallback, muteUpdate, colors.muteColor)
   self.ctrls[2].label = "MUTE"
 
-  self.ctrls[3] = button.create(self, .2*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, killCallback)
+  self.ctrls[3] = button.create(self, .8*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, killCallback)
   self.ctrls[3].label = "REM"
 
   self.ctrls[4] = button.create(self, .50*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, duplicateCallback)
   self.ctrls[4].label = "DUP"
   
-  self.ctrls[5] = button.create(self, .8*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, renameCallback)
+  self.ctrls[5] = button.create(self, .2*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, renameCallback)
   self.ctrls[5].label = "REN"
   
   self.draw = function( self )
@@ -1009,7 +1017,7 @@ function sink.create(viewer, track, idx)
       if ( self:checkHit( x, y ) ) then
         if ( not self.ctrls ) then
           self.ctrls = sink_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.loc )
-          return false
+          return true
         end
       end
     end
@@ -1019,11 +1027,10 @@ function sink.create(viewer, track, idx)
         if ( not self.ctrls ) then
           self.ctrls = sink_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.loc )
           self.ctrls:kill()
-          return false
+          return true
         end
       end
     end
-
 
     return false
   end  
@@ -1215,7 +1222,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
       if ( self:checkHit( x, y ) ) then
         if ( not self.ctrls ) then
           self.ctrls = box_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.track, self )
-          return false
+          return true
         end
       end
     end
@@ -1432,6 +1439,123 @@ function block.create(track, x, y, FG, BG, config, viewer)
   return self
 end
 
+fxlist = {}
+function fxlist.create(tab, x, y)
+  local self = {}  
+  self.x = x
+  self.y = y
+  self.tab = tab
+  
+  self.prepTable = function( self, tab )
+    gfx.setfont(1, "Verdana", 14)
+    local c = 1
+    local txts = {}
+    local types = {}
+    local maxw, w, h
+    maxw = 0
+    for i,v in pairs( tab ) do
+      if type(v) == "table" then
+        w, h = gfx.measurestr(i)
+        txts[c] = i
+        types[c] = 1
+      else
+        w, h = gfx.measurestr(v)
+        txts[c] = v
+        types[c] = 0
+      end
+      if ( w > maxw ) then
+        maxw = w
+      end
+      c = c + 1
+    end
+    c = c - 1
+    
+    return txts, types, c, h, maxw
+  end
+  
+  self.txts, self.types, self.c, self.h, self.w = self:prepTable( tab )
+    
+  self.draw = function()  
+    local returnval = 0
+    local x = self.x
+    local y = self.y
+    gfx.x = x
+    gfx.y = y
+    local w = self.w
+    local h = self.h
+    local c = self.c
+    local txts = self.txts
+    local types = self.types
+    
+    gfx.setfont(1, "Verdana", 14)
+    local pad = 3
+    local arrowpad = 5
+    gfx.set(.7, .7, .7, .9)
+    gfx.rect(x-pad, y-pad, w+pad+arrowpad+pad, h*c+pad+pad)
+    gfx.set(0, 0, 0, 1.00)
+    gfx.line(x-pad, y-pad, x+w+pad+arrowpad, y-pad)
+    gfx.line(x-pad, y+h*c+pad, x+w+pad+arrowpad, y+h*c+pad)
+    gfx.line(x-pad, y-pad, x-pad, y+h*c+pad)
+    gfx.line(x+w+pad+arrowpad, y-pad, x+w+pad+arrowpad, y+h*c+pad)
+    
+    for i=1,c do
+      gfx.x = x
+      gfx.drawstr(txts[i])
+      if ( types[i] == 1 ) then
+        gfx.line( x+w + pad, gfx.y - 3 + 0.5*h + 1, x+w+pad + pad, gfx.y + 0.5*h+1 )
+        gfx.line( x+w + pad, gfx.y + 3 + 0.5*h + 1, x+w+pad + pad, gfx.y + 0.5*h+1 )        
+      end      
+      gfx.y = gfx.y + h
+    end
+    
+    if ( gfx.mouse_x > x ) and ( gfx.mouse_x < ( x+w ) and ( gfx.mouse_y > y ) and ( gfx.mouse_y < (y+c*h) ) ) then
+      local i = math.floor((gfx.mouse_y - y) / h) + 1
+      
+      gfx.set(.2, .2, .2, .4)
+      gfx.rect(x-pad, y+(i-1)*h, w+pad+arrowpad+pad, h)
+      
+      -- It's a table, expand!
+      if ( types[i] == 1 ) then
+        if ( self.nestedTable and self.nestedTableIdx ~= i) then
+          self.nestedTable = nil
+        end
+        if ( not self.nestedTable ) then
+          self.nestedTable = fxlist.create(self.tab[self.txts[i]], x+w+pad+arrowpad+pad+2, y+(i-1)*h+pad)
+        end
+      else
+        if ( self.nestedTable ) then
+          self.nestedTable = nil
+        end
+        if ( ( gfx.mouse_cap & 1 ) > 0 ) then
+          return 1, txts[i], self.x, self.y
+        end
+      end      
+    else
+      if ( ( ( gfx.mouse_cap & 1 ) > 0 ) or ( gfx.mouse_cap & 2 ) > 0 and self.hasbeenzero ) then
+        returnval = -1
+      end
+      if ( ( gfx.mouse_cap & 2 ) == 0 ) then
+        self.hasbeenzero = 1
+      end
+      
+    end
+    
+    if ( self.nestedTable ) then
+      local ret, val = self.nestedTable:draw()
+      if ( ret > returnval ) then
+        returnval = ret
+        if ( ret > 0 ) then
+          return 1, val, self.x, self.y
+        end
+      end
+    end
+    
+    return returnval
+  end
+
+  return self
+end
+
 function machineView:getBlockAt(x, y)
   for i,v in pairs(self.tracks) do
     if ( v:checkHit(x, y) == true ) then
@@ -1474,6 +1598,16 @@ function machineView:renameMe(track)
   self.tracks[self.renameGUID].renaming = 1
 end
 
+function machineView:insertMachine(machine, x, y)
+  local nTracks = reaper.GetNumTracks()
+  reaper.InsertTrackAtIndex(nTracks, true)
+  local newTrack = reaper.GetTrack(0, nTracks)
+  reaper.TrackFX_AddByName(newTrack, machine, false, 1)
+  reaper.SetMediaTrackInfo_Value(newTrack, "B_MAINSEND", 0)
+  local trackHandle = self:addTrack(newTrack, x, y)
+  trackHandle:updateSinks()
+end
+
 ------------------------------
 -- Main update loop
 -----------------------------
@@ -1481,14 +1615,9 @@ local function updateLoop()
   local self = machineView    
   
   self:updateGUI()
-  
-  --gfx.x = 0
-  --gfx.y = 0
-  --gfx.drawstr( string.format( "%d, %d", origin[1], origin[2] ) )
-  
   prevChar = lastChar
   lastChar = gfx.getchar()
-  
+ 
   -- Some machine is being renamed (lock everything control related while this is occurring)
   if ( self.renameTrack ) then
     if ( lastChar ~= -1 ) then
@@ -1520,7 +1649,33 @@ local function updateLoop()
     else
       self:terminate()
     end
+  elseif ( self.insertingMachine ) then
+    -- We are inserting a machine
+    if ( lastChar ~= -1 ) then
+      reaper.defer(updateLoop)
+      if lastChar == 27 then -- Escape
+        self.insertingMachine = nil
+        self.FX_list = nil
+      end
+      
+      if ( not self.FX_list ) then
+        self.FX_list = fxlist.create(FXlist, gfx.mouse_x, gfx.mouse_y)
+      else
+        local ret, val, ix, iy = self.FX_list:draw()
+        if ( ret < 0 ) then
+          self.insertingMachine = nil
+          self.FX_list = nil
+        end
+        if ( ret > 0 ) then
+          self.insertingMachine = nil
+          self.FX_list = nil
+          self:insertMachine(val, ix, iy)
+        end
+      end
+      gfx.update()
+    end
   else
+    -- Regular window behavior
     if ( not self.valid ) then
       self.valid = true
     end
@@ -1530,7 +1685,7 @@ local function updateLoop()
     
     -- Prefer last object that was captured
     if ( self.lastCapture ) then
-      local captured = self.lastCapture:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
+      captured = self.lastCapture:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
       self:updateMouseState(mx, my)
       if ( captured == false ) then
         self.lastCapture = nil
@@ -1569,26 +1724,38 @@ local function updateLoop()
       -- Check if a block is clicked
       if ( not captured ) then
         for i,v in pairs(self.tracks) do
-          local captured = v:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
-          if ( captured == true ) then
+          captured = v:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
+          if ( captured ) then
             self:updateMouseState(mx, my)
             self.lastCapture = v
             break;
-          else      
+          else
             -- Nothing clicked yet, then consider the arrows/sinks?
             for j,w in pairs(v.sinks) do         
               -- Check if any of the sinks are clicked.
               if ( not captured ) then        
                 captured = w:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
               end
-              if ( captured == true ) then
+              if ( captured ) then
                 self.lastCapture = w
+                captured = true
                 break;
               end
             end
+            if ( captured ) then
+              break;
+            end
           end
         end      
-      end    
+      end        
+      
+      -- Still nothing, then opt for opening the menu
+      if ( not captured ) then
+        F = ( F or 0 ) + 1
+        if ( ( gfx.mouse_cap & 2 ) > 0 ) then
+          self.insertingMachine = 1
+        end
+      end
     end
   
     zoom = zoom + ( gfx.mouse_wheel / 2000 )
@@ -1620,7 +1787,7 @@ local function updateLoop()
       machineView:distribute(1)
       self.iterFree = self.iterFree - 1
     end
-  
+    
     gfx.update()
     gfx.mouse_wheel = 0
     
