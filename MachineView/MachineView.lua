@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.05
+@version 0.06
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -24,6 +24,8 @@
 
 --[[
  * Changelog:
+ * v0.06 (2018-08-05)
+   + Added option to rename patterns.
  * v0.05 (2018-08-05)
    + Added display option (track name (where non-default) versus effect name). Toggle with F3.
  * v0.04 (2018-08-05)
@@ -134,6 +136,7 @@ function machineView:loadColors(colorScheme)
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
     colors.inactiveColor    = { .6, .6, .6, 1.0 }
     colors.signalColor      = {1/256*159, 1/256*147, 1/256*115, 1}
+    colors.renameColor      = colors.muteColor
   elseif colorScheme == "renoiseB" then
     colors.textcolor        = {148/256, 148/256, 148/256, 1}
     colors.linecolor        = {18/256,18/256,18/256, 0.6}
@@ -145,12 +148,13 @@ function machineView:loadColors(colorScheme)
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
     colors.inactiveColor    = { .6, .6, .6, 1.0 } 
     colors.signalColor      = {37/256,111/256,222/256, 1.0}   
+    colors.renameColor      = colors.muteColor    
   end
   -- clear colour is in a different format
   gfx.clear = colors.windowbackground[1]*256+(colors.windowbackground[2]*256*256)+(colors.windowbackground[3]*256*256*256)
 end
 
-local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N )
+local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc )
   local gfx = gfx
   
   xmi = xtrafo( x - 0.5*w )
@@ -202,17 +206,21 @@ local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgDat
   gfx.line(xmi+2, ymi+2, xmi, yma)
   gfx.line(xma+2, ymi+2, xma, yma)  
   
+  if ( rnc ) then
+    gfx.set( table.unpack(rnc) )  
+  end
+  
   gfx.setfont(1, "Lucida Grande", math.floor(20*zoom))
   local w, h = gfx.measurestr(name)
   gfx.x = xtrafo(x)-0.5*w
   gfx.y = ytrafo(y)-0.5*h
-  
   gfx.drawstr( name, 1, 1 )
   
+  gfx.set( table.unpack(fg) )  
   local xmi2 = xmi + xo
-  local xma2 = xmi + xo + w2
+  local xma2 = xmi + xo + w2*zoom
   local ymi2 = ymi + yo
-  local yma2 = ymi + yo + h2
+  local yma2 = ymi + yo + h2*zoom
   gfx.line(xmi2, ymi2, xma2, ymi2)
   gfx.line(xmi2, yma2, xma2, yma2)
   gfx.line(xmi2, ymi2, xmi2, yma2)
@@ -484,7 +492,7 @@ function box_ctrls.create(viewer, x, y, track, parent)
   
   self.offsetX  = -20
   self.offsetY  = -20
-  self.vW       = 80
+  self.vW       = 110
   self.vH       = 80
   
   local vW = self.vW
@@ -555,22 +563,25 @@ function box_ctrls.create(viewer, x, y, track, parent)
   local duplicateCallback = function()
     self.parent:duplicate()
   end
+  
+  local renameCallback = function()
+    self.parent:rename()
+  end
 
-  self.ctrls[1] = button.create(self, .25*vW + self.offsetX, .25*vH + self.offsetY, .16*vW, .2*vW, soloCallback, soloUpdate)
+  self.ctrls[1] = button.create(self, .2*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, soloCallback, soloUpdate)
   self.ctrls[1].label = "SOLO"
 
-  self.ctrls[2] = button.create(self, .75*vW + self.offsetX, .25*vH + self.offsetY, .16*vW, .2*vW, muteCallback, muteUpdate, colors.muteColor)
+  self.ctrls[2] = button.create(self, .50*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, muteCallback, muteUpdate, colors.muteColor)
   self.ctrls[2].label = "MUTE"
 
-  self.ctrls[3] = button.create(self, .25*vW + self.offsetX, .75*vH + self.offsetY, .16*vW, .2*vW, killCallback)
+  self.ctrls[3] = button.create(self, .2*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, killCallback)
   self.ctrls[3].label = "REM"
 
-  self.ctrls[4] = button.create(self, .75*vW + self.offsetX, .75*vH + self.offsetY, .16*vW, .2*vW, duplicateCallback)
+  self.ctrls[4] = button.create(self, .50*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, duplicateCallback)
   self.ctrls[4].label = "DUP"
-
-  self.kill = function( self )
-    
-  end
+  
+  self.ctrls[5] = button.create(self, .8*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, renameCallback)
+  self.ctrls[5].label = "REN"
   
   self.draw = function( self )
     local x = self.x
@@ -1023,10 +1034,14 @@ function block.create(track, x, y, FG, BG, config, viewer)
         self.dataloc = 1
       end
     end
+    local rnc
+    if ( self.renaming == 1 ) then
+      rnc = colors.renameColor
+    end
     if ( muted == 1 or blockedBySolo ) then
-      box( self.x, self.y, self.w, self.h, str, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN )    
+      box( self.x, self.y, self.w, self.h, str, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc )
     else
-      box( self.x, self.y, self.w, self.h, self.name, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN )
+      box( self.x, self.y, self.w, self.h, self.name, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc )
     end
   end
   
@@ -1165,6 +1180,11 @@ function block.create(track, x, y, FG, BG, config, viewer)
     self.viewer:loadTracks()
   end
   
+  self.rename = function(self)
+    self.viewer:renameMe( self.track )
+    self.ctrls = nil
+  end
+  
   self.toggleMute = function(self)
     local mute = reaper.GetMediaTrackInfo_Value(self.track, "B_MUTE")
     if ( mute == 1 ) then
@@ -1245,6 +1265,15 @@ function machineView:invalidate()
   self.valid = false
 end
 
+function machineView:renameMe(track)
+  showTrackName = 1
+  self.renameTrack = track
+  self.renameGUID = reaper.GetTrackGUID(track)
+  local jnk, name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", 0 )
+  self.oldTrackName = name
+  self.tracks[self.renameGUID].renaming = 1
+end
+
 ------------------------------
 -- Main update loop
 -----------------------------
@@ -1257,129 +1286,166 @@ local function updateLoop()
   --gfx.y = 0
   --gfx.drawstr( string.format( "%d, %d", origin[1], origin[2] ) )
   
-  if ( not self.valid ) then
-    self.valid = true
-  end
+  prevChar = lastChar
+  lastChar = gfx.getchar()
   
-  local mx = ( gfx.mouse_x - origin[1]) / zoom
-  local my = ( gfx.mouse_y - origin[2]) / zoom
-  
-  -- Prefer last object that was captured
-  if ( self.lastCapture ) then
-    local captured = self.lastCapture:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
-    self:updateMouseState(mx, my)
-    if ( captured == false ) then
-      self.lastCapture = nil
+  -- Some machine is being renamed (lock everything control related while this is occurring)
+  if ( self.renameTrack ) then
+    if ( lastChar ~= -1 ) then
+      gfx.update()
+      reaper.defer(updateLoop)
+      
+      -- Renaming pattern
+      local jnk, name = reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", "", 0 )
+      if lastChar == 13 then -- Enter
+        self.tracks[self.renameGUID].renaming = 0
+        self.renameTrack = nil
+      elseif lastChar == 27 then -- Escape
+        self.tracks[self.renameGUID].renaming = 0
+        reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", self.oldTrackName, 1 )
+        self.renameTrack = nil
+        self.tracks[self.renameGUID]:updateName() 
+      elseif lastChar == 8 then -- Backspace
+        name = name:sub(1, name:len()-1)
+        reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", name, 1 )
+        self.tracks[self.renameGUID]:updateName()
+      else
+        if ( pcall( function () string.char(lastChar) end ) ) then
+          local str = string.char( lastChar )
+          name = string.format( '%s%s', name, str )
+          reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", name, 1 )
+          self.tracks[self.renameGUID]:updateName()          
+        end
+      end
+    else
+      self:terminate()
     end
   else
-    local captured = false    
-    for i,v in pairs(self.tracks) do
-      -- First check if there is a box control panel open.
-      if ( v.ctrls ) then
-        inrange = v.ctrls:inRange( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
-        if ( not inrange ) then
-          v.ctrls = nil
-        else
-          self.lastCapture = v.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
-          captured = true
-          break;
-        end
-      end    
-     
-      -- Check if there is a sink control panel open
-      for j,w in pairs(v.sinks) do
-        -- First check if there is a sink control panel open. This has highest capture priority.
-        if ( w.ctrls ) then
-          inrange = w.ctrls:inRange( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
+    if ( not self.valid ) then
+      self.valid = true
+    end
+    
+    local mx = ( gfx.mouse_x - origin[1]) / zoom
+    local my = ( gfx.mouse_y - origin[2]) / zoom
+    
+    -- Prefer last object that was captured
+    if ( self.lastCapture ) then
+      local captured = self.lastCapture:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
+      self:updateMouseState(mx, my)
+      if ( captured == false ) then
+        self.lastCapture = nil
+      end
+    else
+      local captured = false    
+      for i,v in pairs(self.tracks) do
+        -- First check if there is a box control panel open.
+        if ( v.ctrls ) then
+          inrange = v.ctrls:inRange( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
           if ( not inrange ) then
-            w.ctrls = nil
+            v.ctrls = nil
           else
-            self.lastCapture = w.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
+            self.lastCapture = v.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
             captured = true
             break;
           end
-        end
-      end
-    end
-      
-    -- Check if a block is clicked
-    if ( not captured ) then
-      for i,v in pairs(self.tracks) do
-        local captured = v:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
-        if ( captured == true ) then
-          self:updateMouseState(mx, my)
-          self.lastCapture = v
-          break;
-        else      
-          -- Nothing clicked yet, then consider the arrows/sinks?
-          for j,w in pairs(v.sinks) do         
-            -- Check if any of the sinks are clicked.
-            if ( not captured ) then        
-              captured = w:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
-            end
-            if ( captured == true ) then
-              self.lastCapture = w
+        end    
+       
+        -- Check if there is a sink control panel open
+        for j,w in pairs(v.sinks) do
+          -- First check if there is a sink control panel open. This has highest capture priority.
+          if ( w.ctrls ) then
+            inrange = w.ctrls:inRange( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
+            if ( not inrange ) then
+              w.ctrls = nil
+            else
+              self.lastCapture = w.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
+              captured = true
               break;
             end
           end
         end
-      end      
-    end    
-  end
-
-  zoom = zoom + ( gfx.mouse_wheel / 2000 )
-  if ( zoom > 2 ) then
-    zoom = 2
-  elseif ( zoom < 0.5 ) then
-    zoom = 0.5
-  end
-
-  if ( ( gfx.mouse_cap & 64 ) > 0 ) then
-    if ( self.ldragx ) then
-      local dx = gfx.mouse_x - self.ldragx
-      local dy = gfx.mouse_y - self.ldragy
-      origin[1] = origin[1] + dx
-      origin[2] = origin[2] + dy      
+      end
+        
+      -- Check if a block is clicked
+      if ( not captured ) then
+        for i,v in pairs(self.tracks) do
+          local captured = v:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
+          if ( captured == true ) then
+            self:updateMouseState(mx, my)
+            self.lastCapture = v
+            break;
+          else      
+            -- Nothing clicked yet, then consider the arrows/sinks?
+            for j,w in pairs(v.sinks) do         
+              -- Check if any of the sinks are clicked.
+              if ( not captured ) then        
+                captured = w:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
+              end
+              if ( captured == true ) then
+                self.lastCapture = w
+                break;
+              end
+            end
+          end
+        end      
+      end    
     end
-    self.ldragx = gfx.mouse_x
-    self.ldragy = gfx.mouse_y
-  else
-    self.ldragx = nil
-  end 
-
-  if ( self.iter and self.iter > 0 ) then
-    machineView:distribute()
-    self.iter = self.iter - 1
-  end
   
-  if ( self.iterFree and self.iterFree > 0 ) then
-    machineView:distribute(1)
-    self.iterFree = self.iterFree - 1
-  end
-
-  gfx.update()
-  gfx.mouse_wheel = 0
+    zoom = zoom + ( gfx.mouse_wheel / 2000 )
+    if ( zoom > 2 ) then
+      zoom = 2
+    elseif ( zoom < 0.5 ) then
+      zoom = 0.5
+    end
   
-  -- Maintain the loop until the window is closed or escape is pressed
-  prevChar = lastChar
-  lastChar = gfx.getchar()
+    if ( ( gfx.mouse_cap & 64 ) > 0 ) then
+      if ( self.ldragx ) then
+        local dx = gfx.mouse_x - self.ldragx
+        local dy = gfx.mouse_y - self.ldragy
+        origin[1] = origin[1] + dx
+        origin[2] = origin[2] + dy      
+      end
+      self.ldragx = gfx.mouse_x
+      self.ldragy = gfx.mouse_y
+    else
+      self.ldragx = nil
+    end 
   
-  if ( lastChar ~= -1 ) then
-    reaper.defer(updateLoop)
+    if ( self.iter and self.iter > 0 ) then
+      machineView:distribute()
+      self.iter = self.iter - 1
+    end
     
-    if ( lastChar == 13 ) then
-      self.iter = 10
-    elseif ( lastChar == 26162 ) then
-      showSignals = 1 - showSignals
-      self:storePositions()
-    elseif ( lastChar == 26163 ) then
-      showTrackName = 1 - showTrackName
-      machineView:updateNames()
-      self:storePositions()
+    if ( self.iterFree and self.iterFree > 0 ) then
+      machineView:distribute(1)
+      self.iterFree = self.iterFree - 1
     end
-  else
-    self:storePositions()
+  
+    gfx.update()
+    gfx.mouse_wheel = 0
+    
+    -- Maintain the loop until the window is closed or escape is pressed
+    if ( lastChar ~= -1 ) then
+      reaper.defer(updateLoop)
+      
+      if ( lastChar == 13 ) then
+        self.iter = 10
+      elseif ( lastChar == 26162 ) then
+        showSignals = 1 - showSignals
+        self:storePositions()
+      elseif ( lastChar == 26163 ) then
+        showTrackName = 1 - showTrackName
+        machineView:updateNames()
+        self:storePositions()
+      end
+    else
+      self:terminate()
+    end
   end
+end
+
+function machineView:terminate()
+  self:storePositions()
 end
 
 function machineView:updateGUI()
@@ -1536,6 +1602,10 @@ function machineView:calcForces()
 
   return fx, fy
 end
+
+-- Add
+
+-- reaper.TrackFX_AddByName(self.track, string fxname, false, -1)
 
 local function Main()
   local self = machineView
