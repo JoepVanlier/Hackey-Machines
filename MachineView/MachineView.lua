@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.02
+@version 0.03
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -24,6 +24,8 @@
 
 --[[
  * Changelog:
+ * v0.03 (2018-08-05)
+   + Added solo handling
  * v0.02 (2018-08-05)
    + Fixed bug in initial position assignments.
  * v0.01 (2018-08-03)
@@ -118,7 +120,9 @@ function machineView:loadColors(colorScheme)
     colors.windowbackground = {1/256*218, 1/256*214, 1/256*201, 1}
     colors.buttonbg         = { 0.1, 0.1, 0.1, .7 }
     colors.buttonfg         = { 0.3, 0.9, 0.4, 1.0 }
-    colors.connector        = { .2, .2, .2, 0.8 }    
+    colors.connector        = { .2, .2, .2, 0.8 }   
+    colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
+    colors.inactiveColor    = { .6, .6, .6, 1.0 }
   elseif colorScheme == "renoiseB" then
     colors.textcolor        = {148/256, 148/256, 148/256, 1}
     colors.linecolor        = {18/256,18/256,18/256, 0.6}
@@ -127,6 +131,8 @@ function machineView:loadColors(colorScheme)
     colors.buttonbg         = { 0.1, 0.1, 0.1, .7 }
     colors.buttonfg         = { 0.3, 0.9, 0.4, 1.0 }
     colors.connector        = { .8, .8, .8, 0.8 }
+    colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
+    colors.inactiveColor    = { .6, .6, .6, 1.0 }    
   end
   -- clear colour is in a different format
   gfx.clear = colors.windowbackground[1]*256+(colors.windowbackground[2]*256*256)+(colors.windowbackground[3]*256*256*256)
@@ -220,18 +226,24 @@ local function inTriangle( triangle, point )
 end
 
 button = {}
-function button.create(parent, x, y, c, c2, callback)
+function button.create(parent, x, y, c, c2, callback, update, fg, bg)
   local self    = {}
   self.parent   = parent
   self.x        = x
   self.y        = y
   self.c        = c
   self.c2       = c2
-  self.bg       = colors.buttonbg
-  self.fg       = colors.buttonfg
+  self.bg       = bg or colors.buttonbg
+  self.fg       = fg or colors.buttonfg
   self.callback = callback
+  self.update   = update
   
   self.draw = function( self )
+  
+    if ( self.update ) then
+      self:update()
+    end
+  
     local x  = self.x + self.parent.x
     local y  = self.y + self.parent.y
     local c  = self.c
@@ -246,6 +258,7 @@ function button.create(parent, x, y, c, c2, callback)
     --gfx.circle(x,y,c2,0,1)
     
     if ( self.label ) then
+      gfx.setfont(1, "Verdana", 10)
       local w, h = gfx.measurestr(self.label)      
       gfx.x = x - 0.5 * w
       gfx.y = y - 0.35*h
@@ -292,12 +305,12 @@ function button.create(parent, x, y, c, c2, callback)
   
     return false
   end
-  
+    
   return self
 end
 
 dial = {}
-function dial.create(parent, x, y, c, c2, getval, setval, disp, lb, ub)
+function dial.create(parent, x, y, c, c2, getval, setval, disp, fg, bg)
   local self  = {}
   self.parent = parent
   self.x      = x
@@ -305,8 +318,8 @@ function dial.create(parent, x, y, c, c2, getval, setval, disp, lb, ub)
   self.c      = c
   self.c2     = c2
   self.val    = .5
-  self.bg     = colors.buttonbg
-  self.fg     = colors.buttonfg
+  self.bg     = fg or colors.buttonbg
+  self.fg     = bg or colors.buttonfg
   self.getval = getval
   self.setval = setval
   self.disp   = disp
@@ -418,6 +431,172 @@ function dial.create(parent, x, y, c, c2, getval, setval, disp, lb, ub)
 end
 
 ---------------------------------------
+-- BOX CTRLS
+---------------------------------------
+box_ctrls = {}
+function box_ctrls.create(viewer, x, y, track, parent)
+  local self  = {}
+  self.x      = x
+  self.y      = y
+  self.track  = track
+  self.viewer = viewer
+  self.color  = { 0.103, 0.103, 0.103, 0.9 }
+  self.edge   = { 0.203, 0.23, 0.13, 0.9 }  
+  self.parent = parent
+  
+  self.offsetX  = -20
+  self.offsetY  = -20
+  self.vW       = 80
+  self.vH       = 80
+  
+  local vW = self.vW
+  local vH = self.vH
+  self.ctrls = {}
+    
+  -- Setter and getter lambdas
+  --[[local setVol, getVol, setPan, getPan
+  if ( loc.sendidx < 0 ) then
+    -- Main send
+    getVol = function()     return reaper.GetMediaTrackInfo_Value(loc.track, "D_VOL")/2 end
+    getPan = function()     return (reaper.GetMediaTrackInfo_Value(loc.track, "D_PAN")+1)*.5 end
+    setVol = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_VOL", val*2) end
+    setPan = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_PAN", val*2-1) end    
+  else
+    getVol = function()     return reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL")/2 end
+    getPan = function()     return (reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN")+1)*.5 end
+    setVol = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL", val*2) end
+    setPan = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN", val*2-1) end
+  end
+  
+  dispVol = function(val) return string.format("%.1f",20*math.log(val*2)/math.log(10)) end
+  dispPan = function(val) 
+    if ( val > 0.5 ) then
+      return string.format("%2dR",math.ceil(200*(val-0.5)))
+    else
+      return string.format("%2dL",math.floor(200*(0.5-val)))
+    end
+  end
+  
+  killCallback = function() self.kill(self) end
+  self.ctrls[1] = dial.create(self, .25*vW + self.offsetX, .25*vH + self.offsetY, .14*vW, .2*vW, getVol, setVol, dispVol)
+  self.ctrls[1].label = "V"
+  self.ctrls[2] = dial.create(self, .75*vW + self.offsetX, .25*vH + self.offsetY, .14*vW, .2*vW, getPan, setPan, dispPan)
+  self.ctrls[2].label = "P"
+  self.ctrls[2].drawFromCenter = 1  
+  ]]--  
+
+  -- Button color updaters for MUTE and SOLO
+  local muteUpdate = function(self)
+    if ( reaper.GetMediaTrackInfo_Value( track, "B_MUTE" ) == 1 ) then
+      self.fg = colors.muteColor
+    else
+      self.fg = colors.inactiveColor
+    end
+  end
+  
+  local soloUpdate = function(self)
+    if ( reaper.GetMediaTrackInfo_Value( track, "I_SOLO" ) > 0 ) then
+      self.fg = colors.buttonfg
+    else
+      self.fg = colors.inactiveColor
+    end
+  end
+  
+  local killCallback = function()
+    self.parent:kill()
+  end
+  
+  local muteCallback = function()
+    self.parent:toggleMute()    
+  end
+  
+  local soloCallback = function()
+    self.parent:toggleSolo()
+  end
+  
+  local duplicateCallback = function()
+    self.parent:duplicate()
+  end
+
+  self.ctrls[1] = button.create(self, .25*vW + self.offsetX, .25*vH + self.offsetY, .16*vW, .2*vW, soloCallback, soloUpdate)
+  self.ctrls[1].label = "SOLO"
+
+  self.ctrls[2] = button.create(self, .75*vW + self.offsetX, .25*vH + self.offsetY, .16*vW, .2*vW, muteCallback, muteUpdate, colors.muteColor)
+  self.ctrls[2].label = "MUTE"
+
+  self.ctrls[3] = button.create(self, .25*vW + self.offsetX, .75*vH + self.offsetY, .16*vW, .2*vW, killCallback)
+  self.ctrls[3].label = "REM"
+
+  self.ctrls[4] = button.create(self, .75*vW + self.offsetX, .75*vH + self.offsetY, .16*vW, .2*vW, duplicateCallback)
+  self.ctrls[4].label = "DUP"
+
+  self.kill = function( self )
+    
+  end
+  
+  self.draw = function( self )
+    local x = self.x
+    local y = self.y
+    gfx.set( table.unpack(self.color) )
+    gfx.rect( x + self.offsetX, y + self.offsetY, self.vW, self.vH )
+    gfx.set( table.unpack(self.edge) )
+    gfx.line( x + self.offsetX,           y + self.offsetY,           x + self.offsetX + self.vW,  y + self.offsetY )
+    gfx.line( x + self.offsetX + self.vW, y + self.offsetY,           x + self.offsetX + self.vW,  y + self.offsetY + self.vH )    
+    gfx.line( x + self.offsetX,           y + self.offsetY + self.vH, x + self.offsetX + self.vW,  y + self.offsetY + self.vH )
+    gfx.line( x + self.offsetX,           y + self.offsetY,           x + self.offsetX,            y + self.offsetY + self.vH )    
+    
+    for i,v in pairs(self.ctrls) do
+      v:draw()
+    end
+  end
+  
+  self.checkHit = function( self, x, y )
+    x = gfx.mouse_x
+    y = gfx.mouse_y
+    local xmi = self.x + self.offsetX
+    local ymi = self.y + self.offsetY
+    local xma = xmi + self.vW
+    local yma = ymi + self.vH     
+  
+    if ( x > xmi and y > ymi and x < xma and y < yma ) then
+      return true
+    end
+    
+    return false
+  end
+  
+  self.inRange = function(self, x, y, lx, ly, lastcapture, lmb, rmb)
+    if ( self.lastCapture ) then
+      return true
+    end
+  
+    -- Check to see if the cursor is still inside
+    if ( self:checkHit( x, y ) ) then
+      return true
+    end
+    
+    return false
+  end
+  
+  self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
+    local captured = false
+    for i,v in pairs(self.ctrls) do
+      captured = v:checkMouse(x, y, lx, ly, self.lastCapture, lmb, rmb, mmb)
+      if ( captured ) then
+        self.lastCapture = v
+        break;
+      end
+    end
+    if ( not captured ) then
+      self.lastCapture = nil
+    end
+  end
+  
+  return self
+end
+
+
+---------------------------------------
 -- SINK CTRLS
 ---------------------------------------
 sink_ctrls = {}
@@ -463,7 +642,7 @@ function sink_ctrls.create(viewer, x, y, loc)
     end
   end
   
-  killCallback = function() self.kill(self) end
+  local killCallback = function() self.kill(self) end
   
   self.ctrls[1] = dial.create(self, .25*vW + self.offsetX, .25*vH + self.offsetY, .14*vW, .2*vW, getVol, setVol, dispVol)
   self.ctrls[1].label = "V"
@@ -640,12 +819,14 @@ function sink.create(viewer, track, idx)
   self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
     local lmb = gfx.mouse_cap & 1
     if ( lmb > 0 ) then lmb = true else lmb = false end
+    local rmb = gfx.mouse_cap & 2
+    if ( rmb > 0 ) then rmb = true else rmb = false end    
     local mmb = ( gfx.mouse_cap & 64 )
     if ( mmb > 0 ) then mmb = true else mmb = false end    
     local shift = gfx.mouse_cap & 8
     if ( shift > 0 ) then shift = true else shift = false end
   
-    if ( lmb ) then      
+    if ( lmb or rmb ) then      
       if ( self:checkHit( x, y ) ) then
         if ( not self.ctrls ) then
           self.ctrls = sink_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.loc )
@@ -697,7 +878,6 @@ function block.create(track, x, y, FG, BG, config, viewer)
   self.w2 = config.muteWidth
   self.h2 = config.muteHeight
   self.checkMute = block.checkMute
-  self.toggleMute = block.toggleMute
   self.move = block.move
   
   local ret, name = reaper.TrackFX_GetFXName(track, 0, "                                                                                          ")
@@ -716,7 +896,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
     i = #name
     while ( w > self.w ) do
       name = name:sub(1,-2)
-      w, h = gfx.measurestr("("..name..")")
+      w, h = gfx.measurestr("[("..name..")]")
     end
   
     self.name = name
@@ -729,6 +909,9 @@ function block.create(track, x, y, FG, BG, config, viewer)
       for i,v in pairs( self.sinks ) do
         v:drawCtrl()
       end
+    end
+    if ( self.ctrls ) then
+      self.ctrls:draw()
     end
   end
   
@@ -751,13 +934,23 @@ function block.create(track, x, y, FG, BG, config, viewer)
   end
   
   -- Draw me
-  self.draw = function()
+  self.draw = function()  
+    local str = self.name
     local muted = reaper.GetMediaTrackInfo_Value( self.track, "B_MUTE" )
     if ( muted == 1 ) then
-      box( self.x, self.y, self.w, self.h, "(" .. self.name .. ")", self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2 )    
+      str = "(" .. str .. ")"
+    end
+    local blockedBySolo = ( reaper.AnyTrackSolo(0) ) and ( reaper.GetMediaTrackInfo_Value( self.track, "I_SOLO" ) == 0 )
+    if ( blockedBySolo ) then
+      str = "[" .. str .. "]"
+    end
+
+    if ( muted == 1 or blockedBySolo ) then
+      box( self.x, self.y, self.w, self.h, str, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2 )    
     else
       box( self.x, self.y, self.w, self.h, self.name, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2 )
-    end  
+    end
+    
   end
   
   -- Update all the sinks from the REAPER data
@@ -791,8 +984,19 @@ function block.create(track, x, y, FG, BG, config, viewer)
   self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
     local lmb = gfx.mouse_cap & 1
     if ( lmb > 0 ) then lmb = true else lmb = false end
+    local rmb = gfx.mouse_cap & 2
+    if ( rmb > 0 ) then rmb = true else rmb = false end    
     local shift = gfx.mouse_cap & 8
     if ( shift > 0 ) then shift = true else shift = false end
+  
+    if ( rmb ) then  
+      if ( self:checkHit( x, y ) ) then
+        if ( not self.ctrls ) then
+          self.ctrls = box_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.track, self )
+          return false
+        end
+      end
+    end
   
     -- LMB
     if ( lmb ) then
@@ -866,7 +1070,23 @@ function block.create(track, x, y, FG, BG, config, viewer)
     -- No capture, release the handle
     self.arrow = nil
     return false
-  end  
+  end
+  
+  self.kill = function(self)
+    reaper.DeleteTrack(self.track)
+    self.viewer:loadTracks()
+  end
+  
+  self.duplicate = function(self)
+    for i=0,reaper.GetNumTracks()-1 do
+      reaper.SetMediaTrackInfo_Value(reaper.GetTrack(0,i), "I_SELECTED", 0)
+    end
+    reaper.SetMediaTrackInfo_Value(self.track, "I_SELECTED", 1)    
+  
+    -- Duplicate track
+    reaper.Main_OnCommand(40062, 0)
+    self.viewer:loadTracks()
+  end
   
   self.toggleMute = function(self)
     local mute = reaper.GetMediaTrackInfo_Value(self.track, "B_MUTE")
@@ -874,6 +1094,22 @@ function block.create(track, x, y, FG, BG, config, viewer)
       reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 0 )
     else
       reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 1 )
+      
+      -- If it was solo, un-solo!
+      if ( reaper.GetMediaTrackInfo_Value( self.track, "I_SOLO" ) > 0 ) then
+        reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 0 )
+      end
+    end
+  end
+  
+  self.toggleSolo = function(self)
+    local wasSolo = reaper.GetMediaTrackInfo_Value( self.track, "I_SOLO" ) > 0;
+    if ( wasSolo ) then
+      reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 0 )
+    else
+      -- If solo'd, make sure it is not muted
+      reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 0 )
+      reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 1 )
     end
   end
   
@@ -960,7 +1196,19 @@ local function updateLoop()
     end
   else
     local captured = false    
-    for i,v in pairs(self.tracks) do     
+    for i,v in pairs(self.tracks) do
+      -- First check if there is a box control panel open.
+      if ( v.ctrls ) then
+        inrange = v.ctrls:inRange( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
+        if ( not inrange ) then
+          v.ctrls = nil
+        else
+          self.lastCapture = v.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
+          captured = true
+          break;
+        end
+      end    
+     
       -- Check if there is a sink control panel open
       for j,w in pairs(v.sinks) do
         -- First check if there is a sink control panel open. This has highest capture priority.
@@ -1063,6 +1311,7 @@ function machineView:updateGUI()
     v:draw(self.origin, self.zoom)
   end
   for i,v in pairs( self.tracks ) do
+    v:drawCtrls()  
     if ( v.sinks ) then
       v:drawCtrls()
     end
