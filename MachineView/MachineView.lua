@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.04
+@version 0.05
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -24,6 +24,8 @@
 
 --[[
  * Changelog:
+ * v0.05 (2018-08-05)
+   + Added display option (track name (where non-default) versus effect name). Toggle with F3.
  * v0.04 (2018-08-05)
    + Added signal display (Toggle with F2)
  * v0.03 (2018-08-05)
@@ -57,6 +59,7 @@ origin = { 0, 0 }
 zoom = 0.8
 
 showSignals = 1
+showTrackName = 1
 
 local function xtrafo(x)
   return x * zoom + origin[1]
@@ -915,29 +918,47 @@ function block.create(track, x, y, FG, BG, config, viewer)
   self.checkMute = block.checkMute
   self.move = block.move
   
-  local ret, name = reaper.TrackFX_GetFXName(track, 0, "                                                                                          ")
-  if ( ret == true ) then    
-    local sc = string.find(name, ":", 1, true)
-    if ( sc ) then
-      name = name:sub(sc+2, -1)
-    end
-    local sc = string.find(name, "(", 1, true)
-    if ( sc ) then
-      name = name:sub(1,sc-2)
+  self.updateName = function() 
+    local name, ret 
+    if ( showTrackName == 1 ) then
+      ret, str = reaper.GetSetMediaTrackInfo_String(self.track, "P_NAME", "", 0 )
+      if ( ret == true ) then
+        name = str
+      end
+      self.name = name
+      
+      if ( name == "" ) then
+        name = nil
+      end
     end
     
-    -- Check if the name fits the box
-    local w, h = gfx.measurestr(name)
-    i = #name
-    while ( w > self.w ) do
-      name = name:sub(1,-2)
-      w, h = gfx.measurestr("[("..name..")]")
+    if ( not name ) then
+      ret, name = reaper.TrackFX_GetFXName(track, 0, "")
+      if ( ret == true ) then    
+        local sc = string.find(name, ":", 1, true)
+        if ( sc ) then
+          name = name:sub(sc+2, -1)
+        end
+        local sc = string.find(name, "(", 1, true)
+        if ( sc ) then
+          name = name:sub(1,sc-2)
+        end
+        
+        -- Check if the name fits the box
+        local w, h = gfx.measurestr(name)
+        i = #name
+        while ( w > self.w ) do
+          name = name:sub(1,-2)
+          w, h = gfx.measurestr("[("..name..")]")
+        end
+      
+        self.name = name
+      else
+        self.name = "NO FX"  
+      end
     end
-  
-    self.name = name
-  else
-    self.name = "NO FX"  
   end
+  self:updateName()
   
   self.drawCtrls = function()
     if ( self.sinks ) then
@@ -1348,9 +1369,13 @@ local function updateLoop()
     
     if ( lastChar == 13 ) then
       self.iter = 10
-    end
-    if ( lastChar == 26162 ) then
+    elseif ( lastChar == 26162 ) then
       showSignals = 1 - showSignals
+      self:storePositions()
+    elseif ( lastChar == 26163 ) then
+      showTrackName = 1 - showTrackName
+      machineView:updateNames()
+      self:storePositions()
     end
   else
     self:storePositions()
@@ -1374,6 +1399,15 @@ function machineView:updateGUI()
     if ( v.sinks ) then
       v:drawCtrls()
     end
+  end
+end
+
+function machineView:updateNames()
+  local self = machineView
+  
+  -- Remove the ones that do not exist anymore
+  for i,v in pairs( self.tracks ) do
+    v:updateName()
   end
 end
 
@@ -1533,6 +1567,7 @@ function machineView:storePositions()
   reaper.SetProjExtState(0, "MVJV001", "gfxh", tostring(gfx.h))
 
   reaper.SetProjExtState(0, "MVJV001", "showSignals", tostring(showSignals))
+  reaper.SetProjExtState(0, "MVJV001", "showTrackName", tostring(showTrackName))
 end
 
 function machineView:loadPositions()
@@ -1557,6 +1592,8 @@ function machineView:loadPositions()
   if ( ok ) then z = tonumber( v ) end
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "showSignals")  
   if ( ok ) then showS = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "showTrackName")  
+  if ( ok ) then showT = tonumber( v ) end  
   
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "gfxw")  
   if ( ok ) then gfxw = tonumber( v ) end
@@ -1567,6 +1604,7 @@ function machineView:loadPositions()
   origin[2]     = oy or origin[2]
   zoom          = z or zoom
   showSignals   = showS or showSignals
+  showTrackName = showT or showTrackName
   
   self.config.width = gfxw or self.config.width
   self.config.height = gfxh or self.config.height
