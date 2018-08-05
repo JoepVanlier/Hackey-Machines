@@ -8,6 +8,7 @@
 @license MIT
 @version 0.01
 @screenshot 
+  https://i.imgur.com/WP1kY6h.png
 @about 
   ### Hackey-Machines
   #### What is it?
