@@ -1087,7 +1087,7 @@ function machineView:loadTracks()
       if ( self.tracks[GUID] ) then
         self.tracks[GUID].found = 1
       else
-        self:addTrack(track, math.floor(math.random()*gfx.w), math.floor(math.random()*gfx.h))
+        self:addTrack(track, math.floor(.5*self.config.width*math.random()), math.floor(.5*self.config.height*math.random()))
       end
     end
   end
@@ -1137,7 +1137,7 @@ function machineView:calcForces()
   end
   
   local xx, xy, sx, sy, rx, ry
-  local k = 1e-2
+  local k = 3e-2
   local Q = 5.3e2
   for i,v in pairs( self.tracks ) do
     xx = v.x
@@ -1198,11 +1198,11 @@ local function Main()
   local reaper = reaper
   
   self:loadColors("default")  
-  local v = self:addTrack(reaper.GetMasterTrack(0), math.floor(.5*gfx.w), math.floor(.5*gfx.h))
+  local v = self:addTrack(reaper.GetMasterTrack(0), math.floor(.5*self.config.width), math.floor(.5*self.config.height))
   v.isMaster = 1
   v.name = "MASTER"  
   self:loadTracks()
-  self:loadPositions()  
+--  self:loadPositions()  
   
   gfx.init("Hackey Machines", self.config.width, self.config.height, 0, self.config.x, self.config.y)
 
@@ -1248,7 +1248,7 @@ function machineView:loadPositions()
   if ( ok ) then gfxw = tonumber( v ) end
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "gfxh")  
   if ( ok ) then gfxh = tonumber( v ) end
-    
+  
   origin[1] = ox or origin[1]
   origin[2] = oy or origin[2]
   zoom      = z or zoom
