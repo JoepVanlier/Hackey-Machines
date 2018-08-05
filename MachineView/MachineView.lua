@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.06
+@version 0.07
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -24,8 +24,10 @@
 
 --[[
  * Changelog:
+ * v0.07 (2018-08-05)
+   + Added ability to route from nested track to master (reorganizing the tracklist)
  * v0.06 (2018-08-05)
-   + Added option to rename patterns.
+   + Added option to rename machines.
  * v0.05 (2018-08-05)
    + Added display option (track name (where non-default) versus effect name). Toggle with F3.
  * v0.04 (2018-08-05)
@@ -55,6 +57,134 @@ machineView.config.muteOrigX = 4
 machineView.config.muteOrigY = 4
 machineView.config.muteWidth = 14
 machineView.config.muteHeight = 7
+
+FXlist = {
+  instruments = {
+    "Kontakt",
+    "Play",
+    "VacuumPro",  
+    "FM8",
+    "Massive",
+    "Reaktor 6",
+    "Oatmeal",
+    "Z3TA+ 2",
+    "Firebird",
+    "SQ8L",
+    "Absynth 5",
+    "Tyrell N6",
+    "Zebralette",
+    "Podolski",
+    "Hybrid",
+    "mda SubSynth",
+    "Crystal",
+    "Rapture",
+    "Claw",
+    "DX10",
+    "JX10",
+    "polyIblit",
+    "dmiHammer"
+  },
+  drums = {
+    "Battery 4",
+    "VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)",
+    "Kickbox",
+    
+  },
+  effects = {
+    eq = {
+      "ReaEq",
+      "BootEQmkII",
+      "VST3: OneKnob Phatter Stereo"
+    },
+    filter = {
+      "BiFilter",
+      "MComb",
+      "AtlantisFilter",
+      "ReaFir",
+      "Apple 12-Pole Filter",
+      "Apple 2-Pole Lowpass Filter",
+      "Chebyshev 4-Pole Filter",
+      "JS: Exciter",
+    },
+    modulation = {
+      "Chorus (Improved Shaping)",
+      "Chorus (Stereo)",
+      "Chorus CH-1",
+      "Chorus CH-2",
+      "VST3: MFlanger",
+      "VST3: MVibrato",
+      "VST3: MPhaser",
+      "VST3: Tremolo",
+    },
+    dynamics = {
+      "VST3: API-2500 Stereo",
+      "VST3: L1 limiter Stereo",
+      "VST3: TransX Wide Stereo",
+      "VST3: TransX Multi Stereo",
+      "ReaComp",
+      "ReaXComp",
+      "VST3: Percolate",
+    },
+    distortion = {
+      "Amplitube 3",
+      "Renegade",
+      "VST3: MSaturator", 
+      "VST3: MWaveShaper",
+      "VST3: MWaveFolder",
+      "Guitar Rig 5",
+      "Cyanide 2",
+      "Driver",
+    },    
+    reverb = {
+      "ReaVerb",
+      "VST3: IR-L full Stereo",
+      "VST3: H-Reverb Stereo/5.1",
+      "VST3: H-Reverb long Stereo/5.1",
+      "VST3: RVerb Stereo",
+      "epicVerb",
+      "Ambience",
+      "Hexaline",
+      "ModernFlashVerb",
+    },    
+    delay = {
+      "ReaDelay",
+      "VST3: H-Delay Stereo",
+      "VST3: STA Delay",
+      "MjRotoDelay",
+      "ModernSpacer",
+    },
+    mastering = {
+      "VST3: Drawmer S73",
+      "VST3: L1+ Ultramaximizer Stereo",
+      "VST3: Elephant",
+    },
+    strip = {
+      "VST3: Scheps Omni Channel Stereo",
+      "VST3: SSLGChannel Stereo",
+    },
+    stereo = {
+      "VST3: S1 Imager Stereo",
+      "VST3: MSpectralPan",
+      "VST3: MStereoExpander",
+      "VST3: Propane",
+      "Saike StereoManipulator",
+    },
+    gate = {
+      "ReaGate",
+    },
+    pitch = {
+      "ReaPitch",
+      "ReaTune",
+    },
+    vocoder = {
+      "mda Talkbox",
+    },
+    analysis = {
+      "SideSpectrum Meter"
+    },
+  },
+}
+
 
 doubleClickInterval = 0.2
 origin = { 0, 0 }
@@ -445,7 +575,7 @@ function dial.create(parent, x, y, c, c2, getval, setval, disp, fg, bg)
           self.val = self.getval()
         end
       
-        -- Were we trying to connect something?
+        -- Change and clamp value of dial
         self.val = self.val - .015*(y-self.ly)
         if ( self.val > 1 ) then
           self.val = 1
@@ -1136,17 +1266,87 @@ function block.create(track, x, y, FG, BG, config, viewer)
           if ( other ) then
             -- Found block to connect to          
             local otherTrack = other.track
-            
             -- Check if we are connecting to the master track (mainsend)
             local depth = reaper.GetTrackDepth(self.track)
-            if ( otherTrack == reaper.GetMasterTrack(0) and depth == 0 ) then
+            if ( otherTrack == reaper.GetMasterTrack(0) ) then
               --print( "Attempt to connect to master" )
-              reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 1)
+              if ( depth == 0 ) then
+                reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 1)
+              else
+                -- This is a difficult case as the only way to send to master is to make the depth 0
+                -- However, this also means that we have to be careful about any other routing that might take place.
+
+                --[[
+                Old solution pre ReorderSelectedTracks
+                  local GUID = reaper.GetTrackGUID(self.track)
+                  reaper.InsertTrackAtIndex(0, false)
+                  
+                  local targetTrack
+                  for i=0,reaper.GetNumTracks()-1 do
+                    local curTrack = reaper.GetTrack(0, i)
+                    local ok, str = reaper.GetSetMediaTrackInfo_String(curTrack, "P_NAME", "", 0)
+                    if ( str == "To Master" ) then
+                      targetTrack = curTrack
+                      break;
+                    end
+                  end
+                  
+                  if ( not targetTrack ) then
+                  print("TARGET TRACK DID NOT YET EXIST ... CREATING")
+                    local GUID = reaper.GetTrackGUID(self.track)
+                  
+                    targetTrack = reaper.GetTrack(0,0)
+                    reaper.GetSetMediaTrackInfo_String(targetTrack, "P_NAME", "To Master", 1)
+                    reaper.SetMediaTrackInfo_Value(targetTrack, "B_MAINSEND", 1)
+                    
+                    -- Find my own index again now that it has shifted
+                    for i=0,reaper.GetNumTracks()-1 do
+                      local curTrack = reaper.GetTrack(0, i)
+                      if ( reaper.GetTrackGUID(curTrack) == GUID ) then
+                        self.track = curTrack
+                        break;
+                      end
+                    end
+                  end
+                  
+                  reaper.CreateTrackSend(self.track, targetTrack)
+                ]]--
+                
+                -- 1. The send to its parent needs to be made explicit if it is present
+                local sendsToParent = reaper.GetMediaTrackInfo_Value(self.track, "B_MAINSEND")
+                if ( sendsToParent == 1 ) then
+                  reaper.CreateTrackSend(self.track, reaper.GetParentTrack(self.track))
+                end               
+                
+                -- 2. Find its current index, find closest location with depth = 0 and only select current track
+                local idx = -1;
+                local d0idx = -1;
+                for i=0,reaper.GetNumTracks()-1 do
+                  local curTrack = reaper.GetTrack(0, i)
+                  local depth = reaper.GetTrackDepth(curTrack)
+                  if ( depth == 0 ) then
+                    d0idx = i;
+                  end
+                  if ( self.track == curTrack ) then
+                    idx = i;
+                    break;
+                  end
+                end
+                reaper.SetOnlyTrackSelected(self.track)
+                
+                -- 3. Move the track to a place where the depth = 0               
+                reaper.ReorderSelectedTracks( d0idx, 0 )
+                
+                -- 4. Send to master :)
+                reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 1)             
+              end
             elseif ( otherTrack == reaper.GetParentTrack(self.track) ) then
               -- Check if we are connecting to the parent (mainsend)
+              --print( "Attempt to connect to parent" )
               reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 1)
             else
               -- Other
+              -- print( "Attempt to connect other" )
               reaper.CreateTrackSend(self.track, otherTrack)
             end
             
