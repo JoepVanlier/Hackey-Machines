@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.03
+@version 0.04
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -24,8 +24,13 @@
 
 --[[
  * Changelog:
+ * v0.04 (2018-08-05)
+   + Added signal display (Toggle with F2)
  * v0.03 (2018-08-05)
    + Added solo handling
+   + Added track menu
+   + Added duplication
+   + Added track removal
  * v0.02 (2018-08-05)
    + Fixed bug in initial position assignments.
  * v0.01 (2018-08-03)
@@ -50,6 +55,8 @@ machineView.config.muteHeight = 7
 doubleClickInterval = 0.2
 origin = { 0, 0 }
 zoom = 0.8
+
+showSignals = 1
 
 local function xtrafo(x)
   return x * zoom + origin[1]
@@ -123,6 +130,7 @@ function machineView:loadColors(colorScheme)
     colors.connector        = { .2, .2, .2, 0.8 }   
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
     colors.inactiveColor    = { .6, .6, .6, 1.0 }
+    colors.signalColor      = {1/256*159, 1/256*147, 1/256*115, 1}
   elseif colorScheme == "renoiseB" then
     colors.textcolor        = {148/256, 148/256, 148/256, 1}
     colors.linecolor        = {18/256,18/256,18/256, 0.6}
@@ -132,13 +140,14 @@ function machineView:loadColors(colorScheme)
     colors.buttonfg         = { 0.3, 0.9, 0.4, 1.0 }
     colors.connector        = { .8, .8, .8, 0.8 }
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
-    colors.inactiveColor    = { .6, .6, .6, 1.0 }    
+    colors.inactiveColor    = { .6, .6, .6, 1.0 } 
+    colors.signalColor      = {37/256,111/256,222/256, 1.0}   
   end
   -- clear colour is in a different format
   gfx.clear = colors.windowbackground[1]*256+(colors.windowbackground[2]*256*256)+(colors.windowbackground[3]*256*256*256)
 end
 
-local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2 )
+local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N )
   local gfx = gfx
   
   xmi = xtrafo( x - 0.5*w )
@@ -153,6 +162,32 @@ local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2 )
     
   gfx.set( table.unpack(bg) )
   gfx.rect(xmi, ymi, w, h )
+
+  if ( showSignals > 0 ) then
+    gfx.set( table.unpack( fgData ) )
+    local step = (xma-xmi)/N
+    local dy = (yma-ymi)
+    local yl = ymi+d[loc]*dy
+    local xl = xmi
+    local xc = xmi
+    local yc
+    for i=1,N do
+      yc = ymi + d[loc] * dy
+      if ( showSignals == 1 ) then
+        gfx.line(xl, yl, xc, yc)
+      else
+        gfx.line(xc, yma, xc, yc)      
+      end
+      yl = yc
+      xl = xc
+      xc = xc + step
+      loc = loc + 1
+      if ( loc > N ) then
+        loc = 1
+      end
+    end
+  end
+
   gfx.set( table.unpack(fg) )  
   gfx.line(xmi, ymi, xma, ymi)
   gfx.line(xmi, yma, xma, yma)
@@ -933,6 +968,13 @@ function block.create(track, x, y, FG, BG, config, viewer)
     end
   end
   
+  self.data = {}
+  self.dataN = 35
+  for i=1,self.dataN do
+    self.data[i] = 0
+    self.dataloc = 0
+  end
+  
   -- Draw me
   self.draw = function()  
     local str = self.name
@@ -945,12 +987,26 @@ function block.create(track, x, y, FG, BG, config, viewer)
       str = "[" .. str .. "]"
     end
 
-    if ( muted == 1 or blockedBySolo ) then
-      box( self.x, self.y, self.w, self.h, str, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2 )    
-    else
-      box( self.x, self.y, self.w, self.h, self.name, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2 )
+    if ( showSignals > 0 ) then
+      local peak = 8.6562*math.log(reaper.Track_GetPeakInfo(self.track, 0, 0))
+      local noiseFloor = 36
+      if ( peak > 0 ) then
+        peak = 0;
+      elseif ( peak < -noiseFloor ) then
+        peak = -noiseFloor
+      end
+      peak = 1-(peak + noiseFloor)/noiseFloor
+      self.data[self.dataloc] = peak
+      self.dataloc = self.dataloc + 1
+      if ( self.dataloc > self.dataN ) then
+        self.dataloc = 1
+      end
     end
-    
+    if ( muted == 1 or blockedBySolo ) then
+      box( self.x, self.y, self.w, self.h, str, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN )    
+    else
+      box( self.x, self.y, self.w, self.h, self.name, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN )
+    end
   end
   
   -- Update all the sinks from the REAPER data
@@ -1293,6 +1349,9 @@ local function updateLoop()
     if ( lastChar == 13 ) then
       self.iter = 10
     end
+    if ( lastChar == 26162 ) then
+      showSignals = 1 - showSignals
+    end
   else
     self:storePositions()
   end
@@ -1472,6 +1531,8 @@ function machineView:storePositions()
   
   reaper.SetProjExtState(0, "MVJV001", "gfxw", tostring(gfx.w))
   reaper.SetProjExtState(0, "MVJV001", "gfxh", tostring(gfx.h))
+
+  reaper.SetProjExtState(0, "MVJV001", "showSignals", tostring(showSignals))
 end
 
 function machineView:loadPositions()
@@ -1494,15 +1555,18 @@ function machineView:loadPositions()
   if ( ok ) then oy = tonumber( v ) end
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "zoom")  
   if ( ok ) then z = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "showSignals")  
+  if ( ok ) then showS = tonumber( v ) end
   
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "gfxw")  
   if ( ok ) then gfxw = tonumber( v ) end
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "gfxh")  
   if ( ok ) then gfxh = tonumber( v ) end
   
-  origin[1] = ox or origin[1]
-  origin[2] = oy or origin[2]
-  zoom      = z or zoom
+  origin[1]     = ox or origin[1]
+  origin[2]     = oy or origin[2]
+  zoom          = z or zoom
+  showSignals   = showS or showSignals
   
   self.config.width = gfxw or self.config.width
   self.config.height = gfxh or self.config.height
