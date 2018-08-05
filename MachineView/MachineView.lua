@@ -24,6 +24,8 @@
 
 --[[
  * Changelog:
+ * v0.02 (2018-08-05)
+   + Fixed bug in initial position assignments.
  * v0.01 (2018-08-03)
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
@@ -1202,7 +1204,7 @@ local function Main()
   v.isMaster = 1
   v.name = "MASTER"  
   self:loadTracks()
---  self:loadPositions()  
+  self:loadPositions()  
   
   gfx.init("Hackey Machines", self.config.width, self.config.height, 0, self.config.x, self.config.y)
 
