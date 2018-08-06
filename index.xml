@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="5b1759595d0c5168fa53cb08781186cf35c1e039">
+<index version="1" name="Routing tools" commit="aa0157bd0f9166af7fd09764c4697bd202f4bd22">
   <category name="MachineView">
     <reapack name="MachineView.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -10,11 +10,16 @@
 {\pard \ql \f0 \sa180 \li0 \fi0 \b \fs28 Hackey-Machines\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \b \fs24 What is it?\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 A lightweight machine plugin for REAPER 5.x and up.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Usage\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Hackey Machines provides an alternative way for visualizing and manipulating the routing in REAPER. Clicking a machine with the outer mouse button or a signal cable with the inner mouse button opens context dependent options. Clicking anywhere with the outer mouse button opens a window to insert new machines.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Connecting two machines can be done by holding shift, clicking the source machine and then dragging the line over to the target machine. Scrolling with the mousewheel zooms, while clicking with the middle mouse button and dragging pans the field of view. Middle mouse on a connection disconnects the two machines. Doubleclicking a machine opens its GUI (if it has one).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 If the wiring turns messy, hit ENTER to simulate the force-based rearranger for a few more steps. It combines spring forces between connected machines and repelling forces between all machines to try and optimally layout the machine graph.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 | Key | Action | |:--------------------------------------|:----------------------------------------------------------------------| | F2 | Enables and disables visualization of signals | | F3 | Toggles between track and machine names | | F4 | Toggle showing all machines versus hiding some | | Shift + Drag to other machine | Connect machines | | Left mouse button on connection arrow | Open subwindow to manipulate volume, panning or disconnect machines | | Right mouse button on machine | Open window to solo, mute, rename, duplicate or remove the machine | | Middle mouse button | Disconnect machine | | Middle mouse button + Drag | Shift field of view | | Scrollwheel | Adjust zoom level | | Doubleclick machine | Opens machine GUI (if present) | | Enter | Simulate forces |\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 If you use this plugin and enjoy it let me/others know. If you run into any bugs and figure out a way to reproduce them, please open an issue on the plugin's github page {\field{\*\fldinst{HYPERLINK "https://github.com/JoepVanlier/Hackey-Trackey/issues"}}{\fldrslt{\ul
 here
 }}}
 . I would greatly appreciate it!\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 Happy trackin' :)\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Happy routin' :)\par}
 }
 ]]></description>
         <link rel="website">https://github.com/JoepVanlier/Hackey-Machines</link>
