@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.08
+@version 0.11
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -24,6 +24,12 @@
 
 --[[
  * Changelog:
+ * v0.11 (2018-08-06)
+   + Bugfix that avoids sinks from being unnecessarily refreshed
+ * v0.10 (2018-08-06)
+   + Continuously check if tracks require updating (to avoid errors when user suddenly deletes stuff manually)
+ * v0.09 (2018-08-06)
+   + Separated out user configuration of VSTs to include in menu. Open notepad to the file with F10.
  * v0.08 (2018-08-06)
    + Added ability to add machines from a menu (outer mouse button). Still requires user to 
      make machine list. Should split file out at some point to allow customization per user without
@@ -62,134 +68,8 @@ machineView.config.muteOrigY = 4
 machineView.config.muteWidth = 14
 machineView.config.muteHeight = 7
 
-FXlist = {
-  Instruments = {
-    "Kontakt",
-    "Play",
-    "VacuumPro",  
-    "FM8",
-    "Massive",
-    "Reaktor 6",
-    "Oatmeal",
-    "Z3TA+ 2",
-    "Firebird",
-    "SQ8L",
-    "Absynth 5",
-    "Tyrell N6",
-    "Zebralette",
-    "Podolski",
-    "Hybrid",
-    "mda SubSynth",
-    "Crystal",
-    "Rapture",
-    "Claw",
-    "DX10",
-    "JX10",
-    "polyIblit",
-    "dmiHammer"
-  },
-  Drums = {
-    "Battery 4",
-    "VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)",
-    "Kickbox",
-    
-  },
-  Effects = {
-    EQ = {
-      "ReaEq",
-      "BootEQmkII",
-      "VST3: OneKnob Phatter Stereo"
-    },
-    Filter = {
-      "BiFilter",
-      "MComb",
-      "AtlantisFilter",
-      "ReaFir",
-      "Apple 12-Pole Filter",
-      "Apple 2-Pole Lowpass Filter",
-      "Chebyshev 4-Pole Filter",
-      "JS: Exciter",
-    },
-    Modulation = {
-      "Chorus (Improved Shaping)",
-      "Chorus (Stereo)",
-      "Chorus CH-1",
-      "Chorus CH-2",
-      "VST3: MFlanger",
-      "VST3: MVibrato",
-      "VST3: MPhaser",
-      "VST3: Tremolo",
-    },
-    Dynamics = {
-      "VST3: API-2500 Stereo",
-      "VST3: L1 limiter Stereo",
-      "VST3: TransX Wide Stereo",
-      "VST3: TransX Multi Stereo",
-      "ReaComp",
-      "ReaXComp",
-      "VST3: Percolate",
-    },
-    Distortion = {
-      "Amplitube 3",
-      "Renegade",
-      "VST3: MSaturator", 
-      "VST3: MWaveShaper",
-      "VST3: MWaveFolder",
-      "Guitar Rig 5",
-      "Cyanide 2",
-      "Driver",
-    },    
-    Reverb = {
-      "ReaVerb",
-      "VST3: IR-L full Stereo",
-      "VST3: H-Reverb Stereo/5.1",
-      "VST3: H-Reverb long Stereo/5.1",
-      "VST3: RVerb Stereo",
-      "epicVerb",
-      "Ambience",
-      "Hexaline",
-      "ModernFlashVerb",
-    },    
-    Delay = {
-      "ReaDelay",
-      "VST3: H-Delay Stereo",
-      "VST3: STA Delay",
-      "MjRotoDelay",
-      "ModernSpacer",
-    },
-    Mastering = {
-      "VST3: Drawmer S73",
-      "VST3: L1+ Ultramaximizer Stereo",
-      "VST3: Elephant",
-    },
-    Strip = {
-      "VST3: Scheps Omni Channel Stereo",
-      "VST3: SSLGChannel Stereo",
-    },
-    Stereo = {
-      "VST3: S1 Imager Stereo",
-      "VST3: MSpectralPan",
-      "VST3: MStereoExpander",
-      "VST3: Propane",
-      "Saike StereoManipulator",
-    },
-    Gate = {
-      "ReaGate",
-    },
-    Pitch = {
-      "ReaPitch",
-      "ReaTune",
-    },
-    Vocoder = {
-      "mda Talkbox",
-    },
-    Analysis = {
-      "SideSpectrum Meter"
-    },
-  },
-}
-
-
+defaultFile = "FXlist = {\n  Instruments = {\n    \"Kontakt\",\n    \"Play\",\n    \"VacuumPro\",\n    \"FM8\",\n    \"Massive\",\n    \"Reaktor 6\",\n    \"Oatmeal\",\n    \"Z3TA+2\",\n    \"Firebird\",\n    \"SQ8L\",\n    \"Absynth 5\",\n    \"Tyrell N6\",\n    \"Zebralette\",\n    \"Podolski\",\n    \"Hybrid\",\n    \"mda SubSynth\",\n    \"Crystal\",\n    \"Rapture\",\n    \"Claw\",\n    \"DX10\",\n    \"JX10\",\n    \"polyIblit\",\n    \"dmiHammer\"\n  },\n  Drums = {\n    \"Battery4\",\n    \"VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)\",\n    \"Kickbox\",\n  },\n  Effects = {\n    EQ = {\n      \"ReaEq\",\n     \"BootEQmkII\",\n      \"VST3: OneKnob Phatter Stereo\"\n    },\n    Filter = {\n      \"BiFilter\",\n      \"MComb\",\n      \"AtlantisFilter\",\n      \"ReaFir\",\n      \"Apple 12-Pole Filter\",\n      \"Apple 2-Pole Lowpass Filter\",\n      \"Chebyshev 4-Pole Filter\",\n      \"JS: Exciter\",\n    },\n   Modulation = {\n      \"Chorus (Improved Shaping)\",\n      \"Chorus (Stereo)\",\n      \"Chorus CH-1\",\n      \"Chorus CH-2\",\n      \"VST3: MFlanger\",\n      \"VST3: MVibrato\",\n      \"VST3: MPhaser\",\n      \"VST3: Tremolo\",\n    },\n    Dynamics = {\n      \"VST3: API-2500 Stereo\",\n      \"VST3: L1 limiter Stereo\",\n      \"VST3: TransX Wide Stereo\",\n      \"VST3: TransX Multi Stereo\",\n      \"ReaComp\",\n      \"ReaXComp\",\n      \"VST3:Percolate\",\n    },\n    Distortion = {\n      \"Amplitube 3\",\n      \"Renegade\",\n      \"VST3: MSaturator\", \n       \"VST3: MWaveShaper\",\n     \"VST3: MWaveFolder\",\n      \"Guitar Rig 5\",\n      \"Cyanide 2\",\n      \"Driver\",\n    },\n    Reverb = {\n      \"ReaVerb\",\n      \"VST3: IR-L fullStereo\",\n      \"VST3: H-Reverb Stereo/5.1\",\n      \"VST3: H-Reverb long Stereo/5.1\",\n      \"VST3: RVerb Stereo\",\n      \"epicVerb\",\n      \"Ambience\",\n      \"Hexaline\",\n      \"ModernFlashVerb\",\n    },\n    Delay = {\n      \"ReaDelay\",\n      \"VST3: H-Delay Stereo\",\n      \"VST3: STADelay\",\n      \"MjRotoDelay\",\n      \"ModernSpacer\",\n    },\n    Mastering = {\n      \"VST3: Drawmer S73\",\n      \"VST3: L1+ Ultramaximizer Stereo\",\n      \"VST3: Elephant\",\n    },\n    Strip = {\n      \"VST3: Scheps OmniChannel Stereo\",\n      \"VST3: SSLGChannel Stereo\",\n    },\n    Stereo = {\n      \"VST3: S1 Imager Stereo\",\n      \"VST3: MSpectralPan\",\n      \"VST3: MStereoExpander\",\n      \"VST3: Propane\",\n      \"Saike StereoManipulator\",\n    },\n    Gate = {\n      \"ReaGate\",\n    },\n    Pitch = {\n      \"ReaPitch\",\n      \"ReaTune\",\n    },\n    Vocoder = {\n      \"mda Talkbox\",\n    },\n    Analysis = {\n      \"SideSpectrum Meter\"\n    },\n  },\n}\n"
+print(defaultFile)
 doubleClickInterval = 0.2
 origin = { 0, 0 }
 zoom = 0.8
@@ -291,6 +171,30 @@ function machineView:loadColors(colorScheme)
   -- clear colour is in a different format
   gfx.clear = colors.windowbackground[1]*256+(colors.windowbackground[2]*256*256)+(colors.windowbackground[3]*256*256*256)
 end
+
+local function launchTextEditor(filename)
+  --os.execute("open -a TextEdit \""..filename.."\"")
+  os.execute("start notepad \""..filename.."\"")
+end
+
+local function get_script_path()
+  local info = debug.getinfo(1,'S');
+  local script_path = info.source:match[[^@?(.*[\/])[^\/]-$]]
+  return script_path
+end
+
+local function getConfigFn()
+  local dir = get_script_path()
+  local scriptname = dir.."FX_list"
+  local filename = scriptname..".lua"
+  return filename
+end
+
+function file_exists(name)
+   local f=io.open(name,"r")
+   if f~=nil then io.close(f) return true else return false end
+end
+
 
 local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc )
   local gfx = gfx
@@ -804,9 +708,9 @@ function sink_ctrls.create(viewer, x, y, loc)
   local vW = self.vW
   local vH = self.vH
   self.ctrls = {}
-    
+ 
   -- Setter and getter lambdas
-  local setVol, getVol, setPan, getPan
+  local setVol, getVol, setPan, getPan, dispVol, dispPan
   if ( loc.sendidx < 0 ) then
     -- Main send
     getVol = function()     return reaper.GetMediaTrackInfo_Value(loc.track, "D_VOL")/2 end
@@ -923,11 +827,8 @@ end
 -- SINK
 ---------------------------------------
 sink = {}
-function sink.create(viewer, track, idx)
-  local GUID
-  local self          = {}
-  self.viewer         = viewer
 
+function sink.sinkData(track, idx)
   -- It's a specific send
   local parentGUID = reaper.GetTrackGUID(track)
   if ( idx > - 1 ) then
@@ -948,12 +849,21 @@ function sink.create(viewer, track, idx)
         sinkType      = SINKTYPES.MASTER
       end
     end
-  end 
+  end
+  
+  return {parentGUID=parentGUID, GUID=GUID, sinkType=sinkType}, parentGUID..GUID
+end
+  
+
+function sink.create(viewer, track, idx, sinkData)
+  local GUID
+  local self          = {}
+  self.viewer         = viewer
   
   self.loc            = {track=track, sendidx=idx}
-  self.from           = parentGUID
-  self.GUID           = GUID
-  self.type           = sinkType
+  self.from           = sinkData.parentGUID
+  self.GUID           = sinkData.GUID
+  self.type           = sinkData.sinkType
   self.color          = colors.connector
 
   -- Calculate the edges of the triangle between this block and the block this block
@@ -1031,7 +941,7 @@ function sink.create(viewer, track, idx)
         end
       end
     end
-
+    
     return false
   end  
   
@@ -1186,13 +1096,37 @@ function block.create(track, x, y, FG, BG, config, viewer)
   self.updateSinks = function()
     local sends = reaper.GetTrackNumSends(self.track, 0)
     
-    self.sinks = {}
+    if ( not self.sinks ) then
+      self.sinks = {}
+    end    
+    
+    for i,v in pairs(self.sinks) do
+      v.removeMe = 1
+    end
+    
+    -- Update the sinks only if there have been changes
     for i=0,sends-1 do
-      self.sinks[#self.sinks+1] = sink.create(self.viewer, self.track, i)
+      local sinkData, GUID = sink.sinkData(self.track, i)
+      if ( not self.sinks[GUID] ) then
+        self.sinks[GUID] = sink.create(self.viewer, self.track, i, sinkData)
+      else
+        self.sinks[GUID].removeMe = nil
+      end
     end
     local mainSend = reaper.GetMediaTrackInfo_Value(self.track, "B_MAINSEND")
     if ( mainSend == 1 ) then
-      self.sinks[#self.sinks+1] = sink.create(self.viewer, self.track, -1)
+      local sinkData, GUID = sink.sinkData(self.track, -1)
+      if ( not self.sinks[GUID] ) then
+        self.sinks[GUID] = sink.create(self.viewer, self.track, -1, sinkData)
+      else
+        self.sinks[GUID].removeMe = nil
+      end
+    end
+    
+    for i,v in pairs(self.sinks) do
+      if ( v.removeMe ) then
+        self.sinks[i] = nil
+      end
     end
   end
   
@@ -1614,6 +1548,8 @@ end
 local function updateLoop()
   local self = machineView    
   
+  self:loadTracks()
+  
   self:updateGUI()
   prevChar = lastChar
   lastChar = gfx.getchar()
@@ -1699,11 +1635,11 @@ local function updateLoop()
           if ( not inrange ) then
             v.ctrls = nil
           else
-            self.lastCapture = v.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
+            v.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
             captured = true
             break;
           end
-        end    
+        end
        
         -- Check if there is a sink control panel open
         for j,w in pairs(v.sinks) do
@@ -1713,7 +1649,8 @@ local function updateLoop()
             if ( not inrange ) then
               w.ctrls = nil
             else
-              self.lastCapture = w.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
+              --self.lastCapture = 
+              w.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
               captured = true
               break;
             end
@@ -1731,13 +1668,13 @@ local function updateLoop()
             break;
           else
             -- Nothing clicked yet, then consider the arrows/sinks?
-            for j,w in pairs(v.sinks) do         
+            for j,w in pairs(v.sinks) do       
               -- Check if any of the sinks are clicked.
-              if ( not captured ) then        
+              if ( not captured ) then
                 captured = w:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
               end
               if ( captured ) then
-                self.lastCapture = w
+                --self.lastCapture = w--captured
                 captured = true
                 break;
               end
@@ -1804,6 +1741,8 @@ local function updateLoop()
         showTrackName = 1 - showTrackName
         machineView:updateNames()
         self:storePositions()
+      elseif ( lastChar == 6697264 ) then
+        launchTextEditor( getConfigFn() )
       end
     else
       self:terminate()
@@ -1913,6 +1852,8 @@ function machineView:calcForces()
     fy[i] = 0
   end
   
+  local masterGUID = reaper.GetTrackGUID( reaper.GetMasterTrack(0) )
+  
   local xx, xy, sx, sy, rx, ry
   local k = 3e-2
   local Q = 5.3e2
@@ -1932,6 +1873,19 @@ function machineView:calcForces()
       fy[i] = fy[i] + k*ry
       fx[w.GUID] = fx[w.GUID] - k*rx
       fy[w.GUID] = fy[w.GUID] - k*ry
+    end
+    
+    if ( #v.sinks == 0 ) then
+      -- Connect to the master, because otherwise unconnected stuff would just float away
+      sx = self.tracks[masterGUID].x
+      sy = self.tracks[masterGUID].y
+      rx = sx - xx
+      ry = sy - xy
+      
+      fx[i] = fx[i] + k*rx
+      fy[i] = fy[i] + k*ry
+      fx[masterGUID] = fx[masterGUID] - k*rx
+      fy[masterGUID] = fy[masterGUID] - k*ry
     end
   end
   
@@ -1970,13 +1924,27 @@ function machineView:calcForces()
   return fx, fy
 end
 
--- Add
-
--- reaper.TrackFX_AddByName(self.track, string fxname, false, -1)
-
 local function Main()
   local self = machineView
   local reaper = reaper
+  
+  local filename = getConfigFn()
+  if ( file_exists(filename) == false ) then
+    local file = io.open(filename, "w+")
+    
+    if ( file ) then
+      file:write(defaultFile)
+      file:close()
+    else
+      reaper.ShowMessageBox("Failed to write file in script directory. Terminating...", "FATAL ERROR", 0)
+    end
+  end
+  
+  if ( not pcall(function() dofile(filename) end) ) then
+    reaper.ShowMessageBox(filename .. " contains invalid lua code. Terminating.", "FATAL ERROR", 0)  
+    launchTextEditor(filename)
+    return;
+  end
   
   self:loadColors("default")  
   local v = self:addTrack(reaper.GetMasterTrack(0), math.floor(.5*self.config.width), math.floor(.5*self.config.height))
