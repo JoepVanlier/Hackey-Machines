@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.12
+@version 0.13
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -24,6 +24,8 @@
 
 --[[
  * Changelog:
+ * v0.13 (2018-08-06)
+   + Add option to hide machines (Toggle show all with F4).
  * v0.12 (2018-08-06)
    + Fix in verlet integration routine for graph-force algorithm.
    + Fix when opening the same project file.
@@ -80,6 +82,7 @@ zoom = 0.8
 
 showSignals = 1
 showTrackName = 1
+showHidden = 0
 
 local function xtrafo(x)
   return x * zoom + origin[1]
@@ -200,21 +203,21 @@ function file_exists(name)
 end
 
 
-local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc )
+local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden )
   local gfx = gfx
   
-  xmi = xtrafo( x - 0.5*w )
-  xma = xtrafo( x + 0.5*w )
-  ymi = ytrafo( y - 0.5*h )
-  yma = ytrafo( y + 0.5*h )
-  w = zoom * w
-  h = zoom * h
+  local xmi = xtrafo( x - 0.5*w )
+  local xma = xtrafo( x + 0.5*w )
+  local ymi = ytrafo( y - 0.5*h )
+  local yma = ytrafo( y + 0.5*h )
+  local w = zoom * w
+  local h = zoom * h
 
   gfx.set( 0.0, 0.0, 0.0, 0.8 )
-  gfx.rect(xmi, ymi, w, h )
+  gfx.rect(xmi, ymi, w, h+1 )
     
   gfx.set( table.unpack(bg) )
-  gfx.rect(xmi, ymi, w, h )
+  gfx.rect(xmi, ymi, w, h+3 )
 
   if ( showSignals > 0 ) then
     gfx.set( table.unpack( fgData ) )
@@ -241,25 +244,28 @@ local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgDat
     end
   end
 
-  gfx.set( table.unpack(fg) )  
+  if ( hidden ) then
+    gfx.set( table.unpack(fgData) )  
+  else
+    gfx.set( table.unpack(fg) )
+  end
   gfx.line(xmi, ymi, xma, ymi)
   gfx.line(xmi, yma, xma, yma)
   gfx.line(xmi, ymi, xmi, yma)
   gfx.line(xma, ymi, xma, yma)
-  
-  gfx.line(xmi+2, ymi+2, xma, ymi)
-  gfx.line(xmi+2, yma+2, xma, yma)
-  gfx.line(xmi+2, ymi+2, xmi, yma)
-  gfx.line(xma+2, ymi+2, xma, yma)  
+  gfx.line(xmi+1, yma+1, xma+1, yma+1)
+  gfx.line(xma+1, ymi+1, xma+1, yma+1)
+  gfx.line(xmi+2, yma+2, xma+2, yma+2)
+  gfx.line(xma+2, ymi+2, xma+2, yma+2)    
   
   if ( rnc ) then
     gfx.set( table.unpack(rnc) )  
   end
   
   gfx.setfont(1, "Lucida Grande", math.floor(20*zoom))
-  local w, h = gfx.measurestr(name)
-  gfx.x = xtrafo(x)-0.5*w
-  gfx.y = ytrafo(y)-0.5*h
+  local wc, hc = gfx.measurestr(name)
+  gfx.x = xtrafo(x)-0.5*wc
+  gfx.y = ytrafo(y)-0.5*hc
   gfx.drawstr( name, 1, 1 )
   
   gfx.set( table.unpack(fg) )  
@@ -271,6 +277,11 @@ local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgDat
   gfx.line(xmi2, yma2, xma2, yma2)
   gfx.line(xmi2, ymi2, xmi2, yma2)
   gfx.line(xma2, ymi2, xma2, yma2)  
+  
+  if ( hidden ) then
+    gfx.set( bg[1]*.8, bg[2]*.8, bg[3]*.8, 0.6 )
+    gfx.rect(xmi, ymi, w, h+1 )
+  end
 end
 
 -- World space drawing routines
@@ -594,6 +605,14 @@ function box_ctrls.create(viewer, x, y, track, parent)
     end
   end
   
+  local hideUpdate = function(self)
+    if ( self.parent.parent.hidden ) then
+      self.fg = colors.buttonfg    
+    else
+      self.fg = colors.inactiveColor
+    end
+  end  
+  
   local killCallback = function()
     self.parent:kill()
   end
@@ -613,6 +632,16 @@ function box_ctrls.create(viewer, x, y, track, parent)
   local renameCallback = function()
     self.parent:rename()
   end
+  
+  local hideCallback = function()
+    if ( not self.parent.hidden ) then
+      self.parent.hidden = 1
+    else
+      self.parent.hidden = nil
+    end
+    
+    self.viewer:storePositions()
+  end
 
   self.ctrls[1] = button.create(self, .2*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, soloCallback, soloUpdate)
   self.ctrls[1].label = "SOLO"
@@ -628,6 +657,9 @@ function box_ctrls.create(viewer, x, y, track, parent)
   
   self.ctrls[5] = button.create(self, .2*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, renameCallback)
   self.ctrls[5].label = "REN"
+  
+  self.ctrls[6] = button.create(self, .8*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, hideCallback, hideUpdate)
+  self.ctrls[6].label = "HIDE"  
   
   self.draw = function( self )
     local x = self.x
@@ -899,11 +931,13 @@ function sink.create(viewer, track, idx, sinkData)
     local other = self.viewer:getBlock( self.GUID )
     local this  = self.viewer:getBlock( self.from )
     
-    local indicatorPoly = self.indicatorPoly
-    wgfx.line( this.x, this.y, other.x, other.y )
-    wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[2][1], indicatorPoly[2][2] )
-    wgfx.line( indicatorPoly[2][1], indicatorPoly[2][2], indicatorPoly[3][1], indicatorPoly[3][2] )
-    wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[3][1], indicatorPoly[3][2] )        
+    if ( not this.hidden or (showHidden == 1) ) then
+      local indicatorPoly = self.indicatorPoly
+      wgfx.line( this.x, this.y, other.x, other.y )
+      wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[2][1], indicatorPoly[2][2] )
+      wgfx.line( indicatorPoly[2][1], indicatorPoly[2][2], indicatorPoly[3][1], indicatorPoly[3][2] )
+      wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[3][1], indicatorPoly[3][2] )        
+    end
   end
     
   self.drawCtrl = function(self)
@@ -1058,40 +1092,42 @@ function block.create(track, x, y, FG, BG, config, viewer)
   end
   
   -- Draw me
-  self.draw = function()  
-    local str = self.name
-    local muted = reaper.GetMediaTrackInfo_Value( self.track, "B_MUTE" )
-    if ( muted == 1 ) then
-      str = "(" .. str .. ")"
-    end
-    local blockedBySolo = ( reaper.AnyTrackSolo(0) ) and ( reaper.GetMediaTrackInfo_Value( self.track, "I_SOLO" ) == 0 )
-    if ( blockedBySolo ) then
-      str = "[" .. str .. "]"
-    end
-
-    if ( showSignals > 0 ) then
-      local peak = 8.6562*math.log(reaper.Track_GetPeakInfo(self.track, 0, 0))
-      local noiseFloor = 36
-      if ( peak > 0 ) then
-        peak = 0;
-      elseif ( peak < -noiseFloor ) then
-        peak = -noiseFloor
+  self.draw = function()
+    if ( not self.hidden or (showHidden == 1) ) then
+      local str = self.name
+      local muted = reaper.GetMediaTrackInfo_Value( self.track, "B_MUTE" )
+      if ( muted == 1 ) then
+        str = "(" .. str .. ")"
       end
-      peak = 1-(peak + noiseFloor)/noiseFloor
-      self.data[self.dataloc] = peak
-      self.dataloc = self.dataloc + 1
-      if ( self.dataloc > self.dataN ) then
-        self.dataloc = 1
+      local blockedBySolo = ( reaper.AnyTrackSolo(0) ) and ( reaper.GetMediaTrackInfo_Value( self.track, "I_SOLO" ) == 0 )
+      if ( blockedBySolo ) then
+        str = "[" .. str .. "]"
       end
-    end
-    local rnc
-    if ( self.renaming == 1 ) then
-      rnc = colors.renameColor
-    end
-    if ( muted == 1 or blockedBySolo ) then
-      box( self.x, self.y, self.w, self.h, str, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc )
-    else
-      box( self.x, self.y, self.w, self.h, self.name, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc )
+  
+      if ( showSignals > 0 ) then
+        local peak = 8.6562*math.log(reaper.Track_GetPeakInfo(self.track, 0, 0))
+        local noiseFloor = 36
+        if ( peak > 0 ) then
+          peak = 0;
+        elseif ( peak < -noiseFloor ) then
+          peak = -noiseFloor
+        end
+        peak = 1-(peak + noiseFloor)/noiseFloor
+        self.data[self.dataloc] = peak
+        self.dataloc = self.dataloc + 1
+        if ( self.dataloc > self.dataN ) then
+          self.dataloc = 1
+        end
+      end
+      local rnc
+      if ( self.renaming == 1 ) then
+        rnc = colors.renameColor
+      end
+      if ( muted == 1 or blockedBySolo ) then
+        box( self.x, self.y, self.w, self.h, str, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden )
+      else
+        box( self.x, self.y, self.w, self.h, self.name, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden )
+      end
     end
   end
   
@@ -1153,6 +1189,10 @@ function block.create(track, x, y, FG, BG, config, viewer)
   end
   
   self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
+    if ( (showHidden == 0) and self.hidden ) then
+      return false
+    end
+  
     local lmb = gfx.mouse_cap & 1
     if ( lmb > 0 ) then lmb = true else lmb = false end
     local rmb = gfx.mouse_cap & 2
@@ -1760,6 +1800,9 @@ local function updateLoop()
         showTrackName = 1 - showTrackName
         machineView:updateNames()
         self:storePositions()
+      elseif ( lastChar == 26164 ) then
+        showHidden = 1 - showHidden
+        self:storePositions()
       elseif ( lastChar == 6697264 ) then
         launchTextEditor( getConfigFn() )
       end
@@ -1997,6 +2040,9 @@ function machineView:storePositions()
   for i,v in pairs(self.tracks) do
     reaper.SetProjExtState(0, "MVJV001", i.."x", tostring(v.x))
     reaper.SetProjExtState(0, "MVJV001", i.."y", tostring(v.y))
+    if ( v.hidden ) then
+      reaper.SetProjExtState(0, "MVJV001", i.."h", tostring(v.hidden))
+    end
   end
   
   reaper.SetProjExtState(0, "MVJV001", "ox", tostring(origin[1]))
@@ -2008,6 +2054,7 @@ function machineView:storePositions()
 
   reaper.SetProjExtState(0, "MVJV001", "showSignals", tostring(showSignals))
   reaper.SetProjExtState(0, "MVJV001", "showTrackName", tostring(showTrackName))
+  reaper.SetProjExtState(0, "MVJV001", "showHidden", tostring(showHidden))  
 end
 
 function machineView:loadPositions()
@@ -2018,6 +2065,10 @@ function machineView:loadPositions()
       v.x = tonumber(x)
       v.y = tonumber(y)
       v.fromSave = 1
+    end
+    local ok, h = reaper.GetProjExtState(0, "MVJV001", i.."h")
+    if ( ok and h ) then
+      v.hidden = tonumber(h)
     end
     
     self.iterFree = 50
@@ -2033,7 +2084,9 @@ function machineView:loadPositions()
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "showSignals")  
   if ( ok ) then showS = tonumber( v ) end
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "showTrackName")  
-  if ( ok ) then showT = tonumber( v ) end  
+  if ( ok ) then showT = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "showHidden")  
+  if ( ok ) then showH = tonumber( v ) end      
   
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "gfxw")  
   if ( ok ) then gfxw = tonumber( v ) end
@@ -2045,6 +2098,7 @@ function machineView:loadPositions()
   zoom          = z or zoom
   showSignals   = showS or showSignals
   showTrackName = showT or showTrackName
+  showHidden    = showH or showHidden  
   
   self.config.width = gfxw or self.config.width
   self.config.height = gfxh or self.config.height
