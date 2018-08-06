@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.11
+@version 0.12
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -24,6 +24,10 @@
 
 --[[
  * Changelog:
+ * v0.12 (2018-08-06)
+   + Fix in verlet integration routine for graph-force algorithm.
+   + Fix when opening the same project file.
+   + Continuous storage of positions.
  * v0.11 (2018-08-06)
    + Bugfix that avoids sinks from being unnecessarily refreshed
  * v0.10 (2018-08-06)
@@ -749,7 +753,6 @@ function sink_ctrls.create(viewer, x, y, loc)
     else
       reaper.RemoveTrackSend(loc.track, 0, loc.sendidx)
     end
-    self.viewer:loadTracks()
   end
   
   self.draw = function( self )
@@ -1094,6 +1097,11 @@ function block.create(track, x, y, FG, BG, config, viewer)
   
   -- Update all the sinks from the REAPER data
   self.updateSinks = function()
+    if ( not reaper.ValidatePtr(self.track, "MediaTrack*") ) then
+      -- Failure condition
+      return -1
+    end
+        
     local sends = reaper.GetTrackNumSends(self.track, 0)
     
     if ( not self.sinks ) then
@@ -1180,6 +1188,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
         self.x = self.x + (x - lx)
         self.y = self.y + (y - ly)
         self.viewer:invalidate()
+        self.viewer:storePositions()
         return true
       end
       
@@ -1290,8 +1299,6 @@ function block.create(track, x, y, FG, BG, config, viewer)
               -- print( "Attempt to connect other" )
               reaper.CreateTrackSend(self.track, otherTrack)
             end
-            
-            self.viewer:loadTracks()
           else
             -- Did not find block to connect to
           end
@@ -1307,7 +1314,6 @@ function block.create(track, x, y, FG, BG, config, viewer)
   
   self.kill = function(self)
     reaper.DeleteTrack(self.track)
-    self.viewer:loadTracks()
   end
   
   self.duplicate = function(self)
@@ -1318,7 +1324,6 @@ function block.create(track, x, y, FG, BG, config, viewer)
   
     -- Duplicate track
     reaper.Main_OnCommand(40062, 0)
-    self.viewer:loadTracks()
   end
   
   self.rename = function(self)
@@ -1548,9 +1553,17 @@ end
 local function updateLoop()
   local self = machineView    
   
-  self:loadTracks()
+  reaper.PreventUIRefresh(1)
+  -- Something serious happened. Maybe the user loaded a new file?
+  if ( not pcall( function() self:loadTracks() end ) ) then
+    -- Drop all tracks and try again
+    self.tracks = {}
+    self:initializeTracks()
+    self:loadTracks()
+  end
   
   self:updateGUI()
+  reaper.PreventUIRefresh(-1)
   prevChar = lastChar
   lastChar = gfx.getchar()
  
@@ -1718,11 +1731,17 @@ local function updateLoop()
     if ( self.iter and self.iter > 0 ) then
       machineView:distribute()
       self.iter = self.iter - 1
+      if ( self.iter == 0 ) then
+        self:storePositions()
+      end
     end
     
     if ( self.iterFree and self.iterFree > 0 ) then
       machineView:distribute(1)
       self.iterFree = self.iterFree - 1
+      if ( self.iterFree == 0 ) then
+        self:storePositions()
+      end      
     end
     
     gfx.update()
@@ -1784,7 +1803,7 @@ function machineView:updateNames()
 end
 
 function machineView:loadTracks()
-  local self = machineView
+  --local self = machineView
   
   -- Flag tracks as not being found yet
   for i,v in pairs( self.tracks ) do
@@ -1816,7 +1835,10 @@ function machineView:loadTracks()
   end
   
   for i,v in pairs( self.tracks ) do
-    v:updateSinks()
+    local ret = v:updateSinks()
+    if ( ret and ret == -1 ) then
+      error( 'Failed loading tracks during sink update loop' );
+    end
   end
 end
 
@@ -1830,12 +1852,16 @@ function machineView:distribute(onlyFree)
   end
 
   local dt = .05
-  for c = 1,5 do
+  for c = 1,15 do
     local fx, fy = self:calcForces()
     for i,v in pairs( self.tracks ) do
       if ( not onlyFree or (not v.fromSave) ) then
+        local tx = v.x
+        local ty = v.y
         v.x = 2 * v.x - xl[i] + fx[i] * dt
         v.y = 2 * v.y - yl[i] + fy[i] * dt
+        xl[i] = tx
+        yl[i] = ty
       end
     end
   end
@@ -1875,17 +1901,22 @@ function machineView:calcForces()
       fy[w.GUID] = fy[w.GUID] - k*ry
     end
     
-    if ( #v.sinks == 0 ) then
-      -- Connect to the master, because otherwise unconnected stuff would just float away
-      sx = self.tracks[masterGUID].x
-      sy = self.tracks[masterGUID].y
-      rx = sx - xx
-      ry = sy - xy
-      
+    -- Connect to the master, because otherwise unconnected stuff would just float away
+    sx = self.tracks[masterGUID].x
+    sy = self.tracks[masterGUID].y
+    rx = sx - xx
+    ry = sy - xy
+
+    if ( #v.sinks == 0 ) then      
       fx[i] = fx[i] + k*rx
       fy[i] = fy[i] + k*ry
       fx[masterGUID] = fx[masterGUID] - k*rx
       fy[masterGUID] = fy[masterGUID] - k*ry
+    else
+      fx[i] = fx[i] + k*rx
+      fy[i] = fy[i] + k*ry
+      fx[masterGUID] = fx[masterGUID] + k*rx
+      fy[masterGUID] = fy[masterGUID] + k*ry
     end
   end
   
@@ -1947,15 +1978,19 @@ local function Main()
   end
   
   self:loadColors("default")  
-  local v = self:addTrack(reaper.GetMasterTrack(0), math.floor(.5*self.config.width), math.floor(.5*self.config.height))
-  v.isMaster = 1
-  v.name = "MASTER"  
-  self:loadTracks()
-  self:loadPositions()  
+  self:initializeTracks()
   
   gfx.init("Hackey Machines", self.config.width, self.config.height, 0, self.config.x, self.config.y)
 
   reaper.defer(updateLoop)
+end
+
+function machineView:initializeTracks()
+  local v = self:addTrack(reaper.GetMasterTrack(0), math.floor(.5*self.config.width), math.floor(.5*self.config.height))
+  v.isMaster = 1
+  v.name = "MASTER"  
+  self:loadTracks()
+  self:loadPositions()
 end
 
 function machineView:storePositions()
