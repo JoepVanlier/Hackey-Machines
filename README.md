@@ -23,18 +23,17 @@ Hackey Machines provides an alternative way for visualizing and manipulating the
 new synths/effects from the GUI is not yet supported.
 
 ![Control Surfaces](https://i.imgur.com/VXhQdzy.png)
+
 Clicking a machine with the outer mouse button or a signal cable with the inner mouse button opens context dependent options.
 
+
 ![Insert Machine](https://i.imgur.com/lQ5DTvu.png)
+
 Clicking anywhere with the outer mouse button opens a window to insert new machines.
 
-Connecting two machines can be done by holding shift, clicking the source machine and then dragging the line over to the target machine.
 
-Scrolling with the mousewheel zooms, while clicking with the middle mouse button and dragging pans the field of view.
+Connecting two machines can be done by holding shift, clicking the source machine and then dragging the line over to the target machine. Scrolling with the mousewheel zooms, while clicking with the middle mouse button and dragging pans the field of view. Middle mouse on a connection disconnects the two machines. Doubleclicking a machine opens its GUI (if it has one).
 
-Middle mouse on a connection disconnects the two machines.
-
-Doubleclicking a machine opens its GUI (if it has one).
 
 | Key                   		| Action                                                                |
 |:--------------------------------------|:----------------------------------------------------------------------|
