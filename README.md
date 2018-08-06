@@ -19,8 +19,7 @@ On Windows F10 opens the config file, where you can set which machines you would
 On other OS-es, look for the file FX_list.lua in your %APPDATA%/REAPER/Scripts/Routing tools/MachineView. Edit the file according to the same format.
 
 ## Usage
-Hackey Machines provides an alternative way for visualizing and manipulating the routing in REAPER. Adding 
-new synths/effects from the GUI is not yet supported.
+Hackey Machines provides an alternative way for visualizing and manipulating the routing in REAPER.
 
 ![Control Surfaces](https://i.imgur.com/VXhQdzy.png)
 
@@ -41,6 +40,7 @@ If the wiring turns messy, hit ENTER to simulate the force-based rearranger for 
 |:--------------------------------------|:----------------------------------------------------------------------|
 | F2 | Enables and disables visualization of signals |
 | F3 | Toggles between track and machine names |
+| F4 | Toggle showing all machines versus hiding some |
 | Shift + Drag to other machine | Connect machines |
 | Left mouse button on connection arrow | Open subwindow to manipulate volume, panning or disconnect machines |
 | Right mouse button on machine | Open window to solo, mute, rename, duplicate or remove the machine |
