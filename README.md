@@ -1,5 +1,5 @@
 # Hackey-Machines
-A LUA modular interface plugin for REAPER 5.x and up. Designed to mimick the machine editor in Jeskola Buzz.
+A LUA modular interface plugin for REAPER 5.9x and up. Designed to mimick the machine editor in Jeskola Buzz.
 
 ![Screenshot](https://i.imgur.com/WP1kY6h.png)
 
@@ -35,6 +35,8 @@ Clicking anywhere with the outer mouse button opens a window to insert new machi
 Connecting two machines can be done by holding shift, clicking the source machine and then dragging the line over to the target machine. Scrolling with the mousewheel zooms, while clicking with the middle mouse button and dragging pans the field of view. Middle mouse on a connection disconnects the two machines. Doubleclicking a machine opens its GUI (if it has one).
 
 
+If the wiring turns messy, hit ENTER to simulate the force-based rearranger for a few more steps. It combines spring forces between connected machines and repelling forces between all machines to try and optimally layout the machine graph.
+
 | Key                   		| Action                                                                |
 |:--------------------------------------|:----------------------------------------------------------------------|
 | F2 | Enables and disables visualization of signals |
@@ -46,6 +48,7 @@ Connecting two machines can be done by holding shift, clicking the source machin
 | Middle mouse button + Drag | Shift field of view |
 | Scrollwheel | Adjust zoom level |
 | Doubleclick machine | Opens machine GUI (if present) |
+| Enter | Simulate forces |
 
 
 
