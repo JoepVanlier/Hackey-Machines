@@ -14,12 +14,42 @@
   #### What is it?
   A lightweight machine plugin for REAPER 5.x and up.
   
+  Usage
+  
+  Hackey Machines provides an alternative way for visualizing and manipulating the routing in REAPER. 
+  Clicking a machine with the outer mouse button or a signal cable with the inner mouse button opens 
+  context dependent options. Clicking anywhere with the outer mouse button opens a window to insert new 
+  machines.
+  
+  Connecting two machines can be done by holding shift, clicking the source machine and then dragging 
+  the line over to the target machine. Scrolling with the mousewheel zooms, while clicking with the 
+  middle mouse button and dragging pans the field of view. Middle mouse on a connection disconnects 
+  the two machines. Doubleclicking a machine opens its GUI (if it has one).
+  
+  If the wiring turns messy, hit ENTER to simulate the force-based rearranger for a few more steps.
+  It combines spring forces between connected machines and repelling forces between all machines to 
+  try and optimally layout the machine graph.
+  
+  | Key                                   | Action                                                                |
+  |:--------------------------------------|:----------------------------------------------------------------------|
+  | F2                                    | Enables and disables visualization of signals                         |
+  | F3                                    | Toggles between track and machine names                               |
+  | F4                                    | Toggle showing all machines versus hiding some                        |
+  | Shift + Drag to other machine         | Connect machines                                                      |
+  | Left mouse button on connection arrow | Open subwindow to manipulate volume, panning or disconnect machines   |
+  | Right mouse button on machine         | Open window to solo, mute, rename, duplicate or remove the machine    |
+  | Middle mouse button                   | Disconnect machine                                                    |
+  | Middle mouse button + Drag            | Shift field of view                                                   |
+  | Scrollwheel                           | Adjust zoom level                                                     |
+  | Doubleclick machine                   | Opens machine GUI (if present)                                        |
+  | Enter                                 | Simulate forces                                                       |
+  
   If you use this plugin and enjoy it let me/others know. If you run into any bugs
   and figure out a way to reproduce them, please open an issue on the plugin's
   github page [here](https://github.com/JoepVanlier/Hackey-Trackey/issues). I would
   greatly appreciate it!
   
-  Happy trackin' :)
+  Happy routin' :)
 --]]
 
 --[[
