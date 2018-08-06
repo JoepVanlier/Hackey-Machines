@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="09e55560f33d5a25e8ebbb82f734ae1ce54bdb8f">
+<index version="1" name="Routing tools" commit="8392c38ad7148cf6d2151715775410a9d071ce3f">
   <category name="MachineView">
     <reapack name="MachineView.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -57,6 +57,12 @@ it interfering with what is being updated in the repo.]]></changelog>
       <version name="0.11" author=": Joep Vanlier" time="2018-08-06T00:38:28Z">
         <changelog><![CDATA[+ Bugfix that avoids sinks from being unnecessarily refreshed]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/09e55560f33d5a25e8ebbb82f734ae1ce54bdb8f/MachineView/MachineView.lua</source>
+      </version>
+      <version name="0.12" author=": Joep Vanlier" time="2018-08-06T20:07:55Z">
+        <changelog><![CDATA[+ Fix in verlet integration routine for graph-force algorithm.
++ Fix when opening the same project file.
++ Continuous storage of positions.]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/8392c38ad7148cf6d2151715775410a9d071ce3f/MachineView/MachineView.lua</source>
       </version>
     </reapack>
   </category>
