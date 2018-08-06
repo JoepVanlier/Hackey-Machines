@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.13
+@version 0.14
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -24,6 +24,8 @@
 
 --[[
  * Changelog:
+ * v0.14 (2018-08-06)
+   + Minor tweak simulation algorithm to ignore unmatched machines.
  * v0.13 (2018-08-06)
    + Add option to hide machines (Toggle show all with F4).
  * v0.12 (2018-08-06)
@@ -1741,7 +1743,6 @@ local function updateLoop()
       
       -- Still nothing, then opt for opening the menu
       if ( not captured ) then
-        F = ( F or 0 ) + 1
         if ( ( gfx.mouse_cap & 2 ) > 0 ) then
           self.insertingMachine = 1
         end
@@ -1993,6 +1994,18 @@ function machineView:calcForces()
     if v.y < h then
       fy[i] = fy[i] + QQ
     end    
+  end
+  
+  -- Don't move things without attachments
+  for i,v in pairs( self.tracks ) do
+    local c = 0
+    for j,w in pairs(v.sinks) do
+      c = c + 1
+    end
+    if ( c == 0 ) then
+      fx[i] = 0
+      fy[i] = 0
+    end
   end
 
   return fx, fy
