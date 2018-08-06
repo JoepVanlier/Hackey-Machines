@@ -1,5 +1,5 @@
 # Hackey-Machines
-A LUA modular interface plugin for REAPER 5.x and up. Designed to mimick the machine editor in Jeskola Buzz.
+A LUA modular interface plugin for REAPER 5.9x and up. Designed to mimick the machine editor in Jeskola Buzz.
 
 ![Screenshot](https://i.imgur.com/WP1kY6h.png)
 
