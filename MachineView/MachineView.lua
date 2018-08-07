@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.14
+@version 0.15
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -54,6 +54,9 @@
 
 --[[
  * Changelog:
+ * v0.15 (2018-08-07)
+   + Add selection ability.
+   + Fixed bug with arrows taking precedence over block on top of them.
  * v0.14 (2018-08-06)
    + Minor tweak simulation algorithm to ignore unmatched machines.
  * v0.13 (2018-08-06)
@@ -193,6 +196,7 @@ function machineView:loadColors(colorScheme)
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
     colors.inactiveColor    = { .6, .6, .6, 1.0 }
     colors.signalColor      = {1/256*159, 1/256*147, 1/256*115, 1}
+    colors.selectionColor   = {.3, 0.2, .5, 1}    
     colors.renameColor      = colors.muteColor
   elseif colorScheme == "renoiseB" then
     colors.textcolor        = {148/256, 148/256, 148/256, 1}
@@ -204,7 +208,8 @@ function machineView:loadColors(colorScheme)
     colors.connector        = { .8, .8, .8, 0.8 }
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
     colors.inactiveColor    = { .6, .6, .6, 1.0 } 
-    colors.signalColor      = {37/256,111/256,222/256, 1.0}   
+    colors.signalColor      = {37/256,111/256,222/256, 1.0}  
+    colors.selectionColor   = {1/256*55, 0, 1/256*215, 1}        
     colors.renameColor      = colors.muteColor    
   end
   -- clear colour is in a different format
@@ -235,7 +240,7 @@ function file_exists(name)
 end
 
 
-local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden )
+local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden, selected )
   local gfx = gfx
   
   local xmi = xtrafo( x - 0.5*w )
@@ -313,6 +318,23 @@ local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgDat
   if ( hidden ) then
     gfx.set( bg[1]*.8, bg[2]*.8, bg[3]*.8, 0.6 )
     gfx.rect(xmi, ymi, w, h+1 )
+  end
+  
+  if ( selected > 0 ) then
+    gfx.set( table.unpack( fgData ) )
+    xmi = xmi - 2
+    ymi = ymi - 2
+    xma = xma + 4
+    yma = yma + 4
+    
+    gfx.line(xmi, ymi, xma, ymi)
+    gfx.line(xmi, yma, xma, yma)
+    gfx.line(xmi, ymi, xmi, yma)
+    gfx.line(xma, ymi, xma, yma)
+    
+    local selectionColor = colors.selectionColor
+    gfx.set( selectionColor[1], selectionColor[2], selectionColor[3], selected )
+    gfx.rect(xmi, ymi, w+7, h+7 )
   end
 end
 
@@ -1030,6 +1052,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
   self.viewer = viewer
   self.found = 1
   self.track = track
+  self.selectedOpacity = 0
   self.x = x
   self.y = y
   self.fg = FG
@@ -1155,10 +1178,22 @@ function block.create(track, x, y, FG, BG, config, viewer)
       if ( self.renaming == 1 ) then
         rnc = colors.renameColor
       end
-      if ( muted == 1 or blockedBySolo ) then
-        box( self.x, self.y, self.w, self.h, str, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden )
+      if ( self.selected == 1 ) then
+        self.selectedOpacity = self.selectedOpacity + .05
+        if ( self.selectedOpacity > .3 ) then
+          self.selectedOpacity = .3
+        end
       else
-        box( self.x, self.y, self.w, self.h, self.name, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden )
+        self.selectedOpacity = self.selectedOpacity - .05
+        if ( self.selectedOpacity < 0 ) then
+          self.selectedOpacity = 0
+        end
+      end
+      
+      if ( muted == 1 or blockedBySolo ) then
+        box( self.x, self.y, self.w, self.h, str, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity )
+      else
+        box( self.x, self.y, self.w, self.h, self.name, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity )
       end
     end
   end
@@ -1204,6 +1239,18 @@ function block.create(track, x, y, FG, BG, config, viewer)
         self.sinks[i] = nil
       end
     end
+  end
+  
+  self.evaluateSelection = function(self)
+    if ( not shift ) then
+      if ( ( (gfx.mouse_cap & 4) > 0 ) ) then
+        reaper.SetMediaTrackInfo_Value(track, "I_SELECTED", self.selected)
+      elseif ( self.selected == 0 ) then
+        reaper.SetMediaTrackInfo_Value(reaper.GetMasterTrack(0), "I_SELECTED", 0)            
+        reaper.SetOnlyTrackSelected(track)
+      end
+    end  
+    self.viewer:updateSelection()
   end
   
   -- Check if the block was clicked
@@ -1254,13 +1301,12 @@ function block.create(track, x, y, FG, BG, config, viewer)
             return true
           end
         end
-      
+        
         -- Move the object
+        -- This probably needs refactoring
+        self:evaluateSelection()
+        self.viewer:moveObjects(x - lx, y - ly)
         self.arrow = nil
-        self.x = self.x + (x - lx)
-        self.y = self.y + (y - ly)
-        self.viewer:invalidate()
-        self.viewer:storePositions()
         return true
       end
       
@@ -1271,15 +1317,17 @@ function block.create(track, x, y, FG, BG, config, viewer)
           if ( self.lastTime and (reaper.time_precise() - self.lastTime) < doubleClickInterval ) then
             reaper.TrackFX_SetOpen(self.track, 0, true)
             reaper.TrackFX_Show(self.track, 0, 0)            
-            reaper.TrackFX_Show(self.track, 0, 3)
+            reaper.TrackFX_Show(self.track, 0, 3)            
           end
           self.lastTime = reaper.time_precise()
+  
+          -- Are we selecting something?
+          self:evaluateSelection()
         end
         
         return true
       end
     else
-      
       if ( self == lastcapture ) then
         -- Were we trying to connect something?
         if ( self.arrow ) then
@@ -1619,6 +1667,89 @@ function machineView:insertMachine(machine, x, y)
   trackHandle:updateSinks()
 end
 
+function machineView:moveObjects( diffx, diffy )
+  for i,v in pairs(self.tracks) do
+    if ( v.selected == 1 ) then
+      v.x = v.x + diffx
+      v.y = v.y + diffy
+    end
+  end
+  self:invalidate()
+  self:storePositions()
+end
+
+function machineView:selectMachines()
+  if ( ( gfx.mouse_cap & 1 ) > 0 ) then
+    self.dragSelect[3] = self.dragSelect[3] + .05
+    if ( self.dragSelect[3] > 0.3 ) then
+      self.dragSelect[3] = 0.3
+    end
+    local xmi = self.dragSelect[1]
+    local xma = gfx.mouse_x
+    local ymi = self.dragSelect[2]
+    local yma = gfx.mouse_y
+    
+    if ( xmi > xma ) then
+      local t = xmi
+      xmi = xma
+      xma = t
+    end
+    if ( ymi > yma ) then
+      local t = ymi
+      ymi = yma
+      yma = t
+    end
+        
+    gfx.line(xmi, ymi, xma, ymi)
+    gfx.line(xmi, yma, xma, yma)
+    gfx.line(xmi, ymi, xmi, yma)
+    gfx.line(xma, ymi, xma, yma)
+        
+    local selectionColor = colors.selectionColor
+    gfx.set( selectionColor[1], selectionColor[2], selectionColor[3], self.dragSelect[3] )
+    gfx.rect(xmi, ymi, xma-xmi, yma-ymi)
+
+    -- Go to world space
+    local xmi = (xmi - origin[1]) / zoom
+    local xma = (xma - origin[1]) / zoom
+    local ymi = (ymi - origin[2]) / zoom
+    local yma = (yma - origin[2]) / zoom
+
+    local w = .5*self.config.blockWidth
+    local h = .5*self.config.blockHeight
+    for i,v in pairs(self.tracks) do
+      pts = { { v.x - w, v.y - h }, 
+              { v.x + w, v.y - h }, 
+              { v.x + w, v.y + h }, 
+              { v.x - w, v.y + h } }
+      
+      local hit = 0
+      for j,p in pairs( pts ) do
+        if ( p[1] > xmi and p[2] > ymi and p[1] < xma and p[2] < yma ) then
+          hit = 1
+        end
+      end
+      
+      if ( hit == 1 ) then
+        reaper.SetMediaTrackInfo_Value(v.track, "I_SELECTED", 1)
+        v.selected = 1
+      else
+        reaper.SetMediaTrackInfo_Value(v.track, "I_SELECTED", 0)
+        v.selected = 0        
+      end
+    end
+    
+  else
+    self.dragSelect = nil
+  end
+end
+
+function machineView:updateSelection()
+  for i,v in pairs(self.tracks) do
+    v.selected = reaper.GetMediaTrackInfo_Value(v.track, "I_SELECTED")
+  end
+end
+
 ------------------------------
 -- Main update loop
 -----------------------------
@@ -1695,6 +1826,11 @@ local function updateLoop()
       end
       gfx.update()
     end
+  elseif ( self.dragSelect ) then
+    -- We are dragging an area
+    gfx.update()
+    self:selectMachines()
+    reaper.defer(updateLoop)
   else
     -- Regular window behavior
     if ( not self.valid ) then
@@ -1751,29 +1887,35 @@ local function updateLoop()
             self:updateMouseState(mx, my)
             self.lastCapture = v
             break;
-          else
-            -- Nothing clicked yet, then consider the arrows/sinks?
-            for j,w in pairs(v.sinks) do       
-              -- Check if any of the sinks are clicked.
-              if ( not captured ) then
-                captured = w:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
-              end
-              if ( captured ) then
-                --self.lastCapture = w--captured
-                captured = true
-                break;
-              end
+          end
+        end
+      end
+      
+      if ( not captured ) then
+        for i,v in pairs(self.tracks) do
+          -- Nothing clicked yet, then consider the arrows/sinks?
+          for j,w in pairs(v.sinks) do       
+            -- Check if any of the sinks are clicked.
+            if ( not captured ) then
+              captured = w:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
             end
             if ( captured ) then
+              --self.lastCapture = w--captured
+              captured = true
               break;
             end
+          end
+          if ( captured ) then
+            break;
           end
         end      
       end        
       
-      -- Still nothing, then opt for opening the menu
+      -- Still nothing, then opt for opening the menu or the drag option
       if ( not captured ) then
-        if ( ( gfx.mouse_cap & 2 ) > 0 ) then
+        if ( ( gfx.mouse_cap & 1 ) > 0 ) then
+          self.dragSelect = { gfx.mouse_x, gfx.mouse_y, 0, 0 }
+        elseif ( ( gfx.mouse_cap & 2 ) > 0 ) then
           self.insertingMachine = 1
         end
       end
@@ -1884,6 +2026,7 @@ function machineView:loadTracks()
     if ( v.isMaster ) then
     else
       v.found = 0
+      v.selected = 0
     end
   end
   
@@ -1897,6 +2040,11 @@ function machineView:loadTracks()
         self.tracks[GUID].found = 1
       else
         self:addTrack(track, math.floor(.5*self.config.width*math.random()), math.floor(.5*self.config.height*math.random()))
+      end
+      
+      -- Is it selected? Then add it to the selection list
+      if ( reaper.GetMediaTrackInfo_Value(track, "I_SELECTED") == 1 ) then
+        self.tracks[GUID].selected = 1
       end
     end
   end
@@ -2074,7 +2222,7 @@ end
 function machineView:initializeTracks()
   local v = self:addTrack(reaper.GetMasterTrack(0), math.floor(.5*self.config.width), math.floor(.5*self.config.height))
   v.isMaster = 1
-  v.name = "MASTER"  
+  v.name = "MASTER"
   self:loadTracks()
   self:loadPositions()
 end
