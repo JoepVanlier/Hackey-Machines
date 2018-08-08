@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.15
+@version 0.16
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -54,6 +54,8 @@
 
 --[[
  * Changelog:
+ * v0.16 (2018-08-09)
+   + Added multi-delete and multi-hide.
  * v0.15 (2018-08-07)
    + Add selection ability.
    + Fixed bug with arrows taking precedence over block on top of them.
@@ -281,7 +283,7 @@ local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgDat
     end
   end
 
-  if ( hidden ) then
+  if ( hidden == 1 ) then
     gfx.set( table.unpack(fgData) )  
   else
     gfx.set( table.unpack(fg) )
@@ -315,7 +317,7 @@ local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgDat
   gfx.line(xmi2, ymi2, xmi2, yma2)
   gfx.line(xma2, ymi2, xma2, yma2)  
   
-  if ( hidden ) then
+  if ( hidden == 1 ) then
     gfx.set( bg[1]*.8, bg[2]*.8, bg[3]*.8, 0.6 )
     gfx.rect(xmi, ymi, w, h+1 )
   end
@@ -660,7 +662,7 @@ function box_ctrls.create(viewer, x, y, track, parent)
   end
   
   local hideUpdate = function(self)
-    if ( self.parent.parent.hidden ) then
+    if ( self.parent.parent.hidden == 1 ) then
       self.fg = colors.buttonfg    
     else
       self.fg = colors.inactiveColor
@@ -688,10 +690,11 @@ function box_ctrls.create(viewer, x, y, track, parent)
   end
   
   local hideCallback = function()
-    if ( not self.parent.hidden ) then
+    if ( self.parent.hidden == 0 ) then
       self.parent.hidden = 1
+      self.parent:deselect()
     else
-      self.parent.hidden = nil
+      self.parent.hidden = 0
     end
     
     self.viewer:storePositions()
@@ -985,7 +988,7 @@ function sink.create(viewer, track, idx, sinkData)
     local other = self.viewer:getBlock( self.GUID )
     local this  = self.viewer:getBlock( self.from )
     
-    if ( not this.hidden or (showHidden == 1) ) then
+    if ( this.hidden == 0 or (showHidden == 1) ) then
       local indicatorPoly = self.indicatorPoly
       wgfx.line( this.x, this.y, other.x, other.y )
       wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[2][1], indicatorPoly[2][2] )
@@ -1055,6 +1058,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
   self.selectedOpacity = 0
   self.x = x
   self.y = y
+  self.hidden = 0
   self.fg = FG
   self.bg = BG
   self.mutedfg = {FG[1], FG[2], FG[3], .5*FG[4]}
@@ -1067,6 +1071,15 @@ function block.create(track, x, y, FG, BG, config, viewer)
   self.h2 = config.muteHeight
   self.checkMute = block.checkMute
   self.move = block.move
+  
+  self.select = function(self)
+    self.selected = 1
+    reaper.SetMediaTrackInfo_Value(self.track, "I_SELECTED", 1)
+  end
+  self.deselect = function(self)
+    self.selected = 0
+    reaper.SetMediaTrackInfo_Value(self.track, "I_SELECTED", 0)  
+  end
   
   self.updateName = function() 
     local name, ret 
@@ -1148,7 +1161,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
   
   -- Draw me
   self.draw = function()
-    if ( not self.hidden or (showHidden == 1) ) then
+    if ( (self.hidden == 0) or (showHidden == 1) ) then
       local str = self.name
       local muted = reaper.GetMediaTrackInfo_Value( self.track, "B_MUTE" )
       if ( muted == 1 ) then
@@ -1268,7 +1281,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
   end
   
   self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
-    if ( (showHidden == 0) and self.hidden ) then
+    if ( (showHidden == 0) and self.hidden == 1 ) then
       return false
     end
   
@@ -1433,10 +1446,13 @@ function block.create(track, x, y, FG, BG, config, viewer)
   end
   
   self.kill = function(self)
+    reaper.Undo_BeginBlock()
     reaper.DeleteTrack(self.track)
+    reaper.Undo_EndBlock("Hackey Machines: Delete track", -1)
   end
   
   self.duplicate = function(self)
+    reaper.Undo_BeginBlock()
     for i=0,reaper.GetNumTracks()-1 do
       reaper.SetMediaTrackInfo_Value(reaper.GetTrack(0,i), "I_SELECTED", 0)
     end
@@ -1444,6 +1460,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
   
     -- Duplicate track
     reaper.Main_OnCommand(40062, 0)
+    reaper.Undo_EndBlock("Hackey Machines: Duplicate track", -1)
   end
   
   self.rename = function(self)
@@ -1633,6 +1650,44 @@ function machineView:addTrack(track, x, y)
   return self.tracks[GUID]
 end
 
+function machineView:hideMachines()
+  for i,v in pairs(self.tracks) do
+    if ( v.selected == 1 ) then
+      if ( v.hidden == 1 ) then
+        v.hidden = 0
+      else
+        v.hidden = 1
+        v:deselect()
+      end
+    end
+  end
+  self:updateGUI()
+end
+
+function machineView:deleteMachines()
+  reaper.Undo_BeginBlock()
+  local GUIDstoDelete = {}
+  for i,v in pairs(self.tracks) do
+    if ( v.selected == 1 ) then
+      GUIDstoDelete[#GUIDstoDelete + 1] = i
+    end
+  end
+  --for i = reaper.GetNumTracks()-1,0,-1 do
+  for i = reaper.GetNumTracks()-1,0,-1 do  
+    local ctrk =  reaper.GetTrack(0, i)
+    if ( ctrk ) then
+      for j,v in pairs(GUIDstoDelete) do  
+        if ( reaper.GetTrackGUID( ctrk ) == v ) then
+          reaper.DeleteTrack(ctrk)
+          break;
+        end
+      end
+    end
+  end
+  
+  reaper.Undo_EndBlock("Hackey Machines: Delete multiple tracks", -1)
+end
+
 function machineView:updateMouseState(mx, my)
     self.lx = mx
     self.ly = my
@@ -1718,27 +1773,26 @@ function machineView:selectMachines()
     local w = .5*self.config.blockWidth
     local h = .5*self.config.blockHeight
     for i,v in pairs(self.tracks) do
-      pts = { { v.x - w, v.y - h }, 
-              { v.x + w, v.y - h }, 
-              { v.x + w, v.y + h }, 
-              { v.x - w, v.y + h } }
-      
-      local hit = 0
-      for j,p in pairs( pts ) do
-        if ( p[1] > xmi and p[2] > ymi and p[1] < xma and p[2] < yma ) then
-          hit = 1
+      if ( (v.hidden == 0) or ( showHidden == 1 ) ) then
+        pts = { { v.x - w, v.y - h }, 
+                { v.x + w, v.y - h }, 
+                { v.x + w, v.y + h }, 
+                { v.x - w, v.y + h } }
+        
+        local hit = 0
+        for j,p in pairs( pts ) do
+          if ( p[1] > xmi and p[2] > ymi and p[1] < xma and p[2] < yma ) then
+            hit = 1
+          end
+        end
+        
+        if ( hit == 1 ) then
+          v:select()
+        else
+          v:deselect()     
         end
       end
-      
-      if ( hit == 1 ) then
-        reaper.SetMediaTrackInfo_Value(v.track, "I_SELECTED", 1)
-        v.selected = 1
-      else
-        reaper.SetMediaTrackInfo_Value(v.track, "I_SELECTED", 0)
-        v.selected = 0        
-      end
     end
-    
   else
     self.dragSelect = nil
   end
@@ -1964,7 +2018,12 @@ local function updateLoop()
     if ( lastChar ~= -1 ) then
       reaper.defer(updateLoop)
       
-      if ( lastChar == 13 ) then
+      --print(lastChar)
+      if ( lastChar == 27 or lastChar == 6579564.0 ) then
+        self:deleteMachines()
+      elseif ( lastChar == 104 ) then
+        self:hideMachines()
+      elseif ( lastChar == 13 ) then
         self.iter = 10
       elseif ( lastChar == 26162 ) then
         showSignals = 1 - showSignals
@@ -2231,9 +2290,7 @@ function machineView:storePositions()
   for i,v in pairs(self.tracks) do
     reaper.SetProjExtState(0, "MVJV001", i.."x", tostring(v.x))
     reaper.SetProjExtState(0, "MVJV001", i.."y", tostring(v.y))
-    if ( v.hidden ) then
-      reaper.SetProjExtState(0, "MVJV001", i.."h", tostring(v.hidden))
-    end
+    reaper.SetProjExtState(0, "MVJV001", i.."h", tostring(v.hidden))
   end
   
   reaper.SetProjExtState(0, "MVJV001", "ox", tostring(origin[1]))
@@ -2261,6 +2318,7 @@ function machineView:loadPositions()
     if ( ok and h ) then
       v.hidden = tonumber(h)
     end
+    v.hidden = v.hidden or 0
     
     self.iterFree = 50
   end
