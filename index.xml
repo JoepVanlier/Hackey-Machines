@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="f104c8552459a0ede9712d378e51c3fd003798fd">
+<index version="1" name="Routing tools" commit="b422bf11e1417f4d0421e13725f866235f88c1e6">
   <category name="MachineView">
     <reapack name="MachineView.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -89,6 +89,10 @@ it interfering with what is being updated in the repo.]]></changelog>
       <version name="0.18" author=": Joep Vanlier" time="2018-08-11T15:20:37Z">
         <changelog><![CDATA[+ Pass through CTRL+Z.]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/f104c8552459a0ede9712d378e51c3fd003798fd/MachineView/MachineView.lua</source>
+      </version>
+      <version name="0.19" author=": Joep Vanlier" time="2018-08-11T18:04:25Z">
+        <changelog><![CDATA[+ Added template support.]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/b422bf11e1417f4d0421e13725f866235f88c1e6/MachineView/MachineView.lua</source>
       </version>
     </reapack>
   </category>
