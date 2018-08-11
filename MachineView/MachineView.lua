@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.19
+@version 0.20
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -55,6 +55,8 @@
 
 --[[
  * Changelog:
+ * v0.20 (2018-08-12)
+   + Made delete behaviour more buzz-like (deleting a machine removes all connections).
  * v0.19 (2018-08-12)
    + Added template support.
  * v0.18 (2018-08-11)
@@ -1180,6 +1182,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
   self.h2 = config.muteHeight
   self.checkMute = block.checkMute
   self.move = block.move
+  self.GUID = reaper.GetTrackGUID(self.track)
   
   self.select = function(self)
     self.selected = 1
@@ -1556,7 +1559,10 @@ function block.create(track, x, y, FG, BG, config, viewer)
   
   self.kill = function(self)
     reaper.Undo_BeginBlock()
-    reaper.DeleteTrack(self.track)
+    -- Remove all connections first
+    reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 0)
+    self.viewer:disconnectMe(self.GUID)
+    self.viewer:killTrackByGUID(self.GUID)    
     reaper.Undo_EndBlock("Hackey Machines: Delete track", -1)
   end
   
@@ -1778,22 +1784,9 @@ function machineView:deleteMachines()
   local GUIDstoDelete = {}
   for i,v in pairs(self.tracks) do
     if ( v.selected == 1 ) then
-      GUIDstoDelete[#GUIDstoDelete + 1] = i
+      v:kill()
     end
   end
-  --for i = reaper.GetNumTracks()-1,0,-1 do
-  for i = reaper.GetNumTracks()-1,0,-1 do  
-    local ctrk =  reaper.GetTrack(0, i)
-    if ( ctrk ) then
-      for j,v in pairs(GUIDstoDelete) do  
-        if ( reaper.GetTrackGUID( ctrk ) == v ) then
-          reaper.DeleteTrack(ctrk)
-          break;
-        end
-      end
-    end
-  end
-  
   reaper.Undo_EndBlock("Hackey Machines: Delete multiple tracks", -1)
 end
 
@@ -1821,6 +1814,45 @@ function machineView:renameMe(track)
   self.tracks[self.renameGUID].renaming = 1
 end
 
+function machineView:killTrackByGUID( GUID )
+  for i = 0,reaper.GetNumTracks()-1 do  
+    local ctrk =  reaper.GetTrack(0, i)
+    if ( ctrk ) then
+      if ( reaper.GetTrackGUID( ctrk ) == GUID ) then
+        reaper.DeleteTrack(ctrk)
+        break;
+      end
+    end
+  end
+  
+  self.tracks[GUID] = nil
+end
+
+function machineView:disconnectMe( GUID )
+  local ctrk
+  for i = 0,reaper.GetNumTracks()-1 do  
+    ctrk =  reaper.GetTrack(0, i)
+    if ( ctrk ) then
+      if ( reaper.GetTrackGUID( ctrk ) == GUID ) then
+        break;
+      end
+    end
+  end
+
+  -- Check if anyone has this guy as parent. Disconnect them too!
+  for i,v in pairs(self.tracks) do
+    if ( reaper.GetParentTrack(v.track) == ctrk ) then
+      reaper.SetMediaTrackInfo_Value(v.track, "B_MAINSEND", 0)
+    end
+  end
+  while reaper.GetTrackNumSends(ctrk, 0) > 0 do
+    reaper.RemoveTrackSend(ctrk, 0, 0)
+  end
+  while reaper.GetTrackNumSends(ctrk, -1) > 0 do
+    reaper.RemoveTrackSend(ctrk, -1, 0)
+  end    
+end
+
 function machineView:insertTemplate(val, x, y)
   local v
   local slash = templates.slash
@@ -1832,7 +1864,6 @@ function machineView:insertTemplate(val, x, y)
     for i=3,#val do
       str = str .. slash .. val[i]
     end
-    print(str)
     reaper.Main_openProject(str .. templates.extension)
     insX = x;
     insY = y;
