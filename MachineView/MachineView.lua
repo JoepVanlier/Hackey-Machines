@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.20
+@version 0.23
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -36,6 +36,7 @@
   | F2                                    | Enables and disables visualization of signals                         |
   | F3                                    | Toggles between track and machine names                               |
   | F4                                    | Toggle showing all machines versus hiding some                        |
+  | F5                                    | Switch to night mode                                                  |
   | Shift + Drag to other machine         | Connect machines                                                      |
   | Left mouse button on connection arrow | Open subwindow to manipulate volume, panning or disconnect machines   |
   | Right mouse button on machine         | Open window to solo, mute, rename, duplicate or remove the machine    |
@@ -55,6 +56,13 @@
 
 --[[
  * Changelog:
+ * v0.23 (2018-08-13)
+   + Added automatic alphabetical sorting of instruments and templates.
+ * v0.22 (2018-08-12)
+   + Added mac support with brackets (hopefully/untested!)
+ * v0.21 (2018-08-12)
+   + Improved dark theme (switch with F5)
+   + Made sure master keeps name "MASTER"
  * v0.20 (2018-08-12)
    + Made delete behaviour more buzz-like (deleting a machine removes all connections).
  * v0.19 (2018-08-12)
@@ -145,6 +153,9 @@ help = {
   {"F2", "Toggle signal visualization"},
   {"F3", "Toggle showing track names versus machine names"},
   {"F4", "Toggle showing hidden machines"},
+  {"F5", "Toggle night mode"},
+  {"F8", "Weird stuff"},
+  {"F10", "Open FX editing list (windows only)"}
 }
 
 defaultFile = "FXlist = {\n  Instruments = {\n    \"Kontakt\",\n    \"Play\",\n    \"VacuumPro\",\n    \"FM8\",\n    \"Massive\",\n    \"Reaktor 6\",\n    \"Oatmeal\",\n    \"Z3TA+2\",\n    \"Firebird\",\n    \"SQ8L\",\n    \"Absynth 5\",\n    \"Tyrell N6\",\n    \"Zebralette\",\n    \"Podolski\",\n    \"Hybrid\",\n    \"mda SubSynth\",\n    \"Crystal\",\n    \"Rapture\",\n    \"Claw\",\n    \"DX10\",\n    \"JX10\",\n    \"polyIblit\",\n    \"dmiHammer\"\n  },\n  Drums = {\n    \"Battery4\",\n    \"VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)\",\n    \"Kickbox\",\n  },\n  Effects = {\n    EQ = {\n      \"ReaEq\",\n     \"BootEQmkII\",\n      \"VST3: OneKnob Phatter Stereo\"\n    },\n    Filter = {\n      \"BiFilter\",\n      \"MComb\",\n      \"AtlantisFilter\",\n      \"ReaFir\",\n      \"Apple 12-Pole Filter\",\n      \"Apple 2-Pole Lowpass Filter\",\n      \"Chebyshev 4-Pole Filter\",\n      \"JS: Exciter\",\n    },\n   Modulation = {\n      \"Chorus (Improved Shaping)\",\n      \"Chorus (Stereo)\",\n      \"Chorus CH-1\",\n      \"Chorus CH-2\",\n      \"VST3: MFlanger\",\n      \"VST3: MVibrato\",\n      \"VST3: MPhaser\",\n      \"VST3: Tremolo\",\n    },\n    Dynamics = {\n      \"VST3: API-2500 Stereo\",\n      \"VST3: L1 limiter Stereo\",\n      \"VST3: TransX Wide Stereo\",\n      \"VST3: TransX Multi Stereo\",\n      \"ReaComp\",\n      \"ReaXComp\",\n      \"VST3:Percolate\",\n    },\n    Distortion = {\n      \"Amplitube 3\",\n      \"Renegade\",\n      \"VST3: MSaturator\", \n       \"VST3: MWaveShaper\",\n     \"VST3: MWaveFolder\",\n      \"Guitar Rig 5\",\n      \"Cyanide 2\",\n      \"Driver\",\n    },\n    Reverb = {\n      \"ReaVerb\",\n      \"VST3: IR-L fullStereo\",\n      \"VST3: H-Reverb Stereo/5.1\",\n      \"VST3: H-Reverb long Stereo/5.1\",\n      \"VST3: RVerb Stereo\",\n      \"epicVerb\",\n      \"Ambience\",\n      \"Hexaline\",\n      \"ModernFlashVerb\",\n    },\n    Delay = {\n      \"ReaDelay\",\n      \"VST3: H-Delay Stereo\",\n      \"VST3: STADelay\",\n      \"MjRotoDelay\",\n      \"ModernSpacer\",\n    },\n    Mastering = {\n      \"VST3: Drawmer S73\",\n      \"VST3: L1+ Ultramaximizer Stereo\",\n      \"VST3: Elephant\",\n    },\n    Strip = {\n      \"VST3: Scheps OmniChannel Stereo\",\n      \"VST3: SSLGChannel Stereo\",\n    },\n    Stereo = {\n      \"VST3: S1 Imager Stereo\",\n      \"VST3: MSpectralPan\",\n      \"VST3: MStereoExpander\",\n      \"VST3: Propane\",\n      \"Saike StereoManipulator\",\n    },\n    Gate = {\n      \"ReaGate\",\n    },\n    Pitch = {\n      \"ReaPitch\",\n      \"ReaTune\",\n    },\n    Vocoder = {\n      \"mda Talkbox\",\n    },\n    Analysis = {\n      \"SideSpectrum Meter\"\n    },\n  },\n}\n"
@@ -156,6 +167,7 @@ zoom = 0.8
 showSignals = 1
 showTrackName = 1
 showHidden = 0
+night = 0
 
 local function xtrafo(x)
   return x * zoom + origin[1]
@@ -204,8 +216,6 @@ function tprint (tbl, indent, maxindent, verbose)
             print(formatting .. tostring(v))
           elseif type(v) == 'number' then
             print(formatting .. tostring(v))
---          elseif (type(v) == 'userdata') and ( v.y ) then
---            print(formatting .. " " .. tostring(v) .. ": ".. "x: "..v.x..", y: "..v.y)
           else
             print(formatting .. tostring(v))
           end
@@ -225,7 +235,7 @@ function machineView:loadColors(colorScheme)
   if colorScheme == "default" then
     -- Buzz
     colors.textcolor        = {1/256*48, 1/256*48, 1/256*33, 1}
-    colors.linecolor        = {1/256*218, 1/256*214, 1/256*201, 1}
+    colors.linecolor        = {1/256*48, 1/256*48, 1/256*33, 1}    
     colors.linecolor2       = {1/256*218, 1/256*214, 1/256*201, 1}
     colors.windowbackground = {1/256*218, 1/256*214, 1/256*201, 1}
     colors.buttonbg         = { 0.1, 0.1, 0.1, .7 }
@@ -233,30 +243,35 @@ function machineView:loadColors(colorScheme)
     colors.connector        = { .2, .2, .2, 0.8 }   
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
     colors.inactiveColor    = { .6, .6, .6, 1.0 }
-    colors.signalColor      = {1/256*159, 1/256*147, 1/256*115, 1}
+    colors.signalColor      = {1/256*129, 1/256*127, 1/256*105, 1}
     colors.selectionColor   = {.3, 0.2, .5, 1}    
     colors.renameColor      = colors.muteColor
-  elseif colorScheme == "renoiseB" then
+    colors.playColor        = {0.2, 0.8, 0.6, 1.0}
+  elseif colorScheme == "dark" then
     colors.textcolor        = {148/256, 148/256, 148/256, 1}
-    colors.linecolor        = {18/256,18/256,18/256, 0.6}
-    colors.linecolor2       = {18/256,18/256,18/256, 0.6}
+    colors.linecolor        = {46/256, 46/256, 46/256, 1}    
+    colors.linecolor2       = {.1, .1, .1, 0.6}
     colors.windowbackground = {18/256, 18/256, 18/256, 1}
     colors.buttonbg         = { 0.1, 0.1, 0.1, .7 }
     colors.buttonfg         = { 0.3, 0.9, 0.4, 1.0 }
-    colors.connector        = { .8, .8, .8, 0.8 }
+    colors.connector        = { .4, .4, .4, 0.8 }
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
     colors.inactiveColor    = { .6, .6, .6, 1.0 } 
     colors.signalColor      = {37/256,111/256,222/256, 1.0}  
-    colors.selectionColor   = {1/256*55, 0, 1/256*215, 1}        
-    colors.renameColor      = colors.muteColor    
+    colors.selectionColor   = {.2, .2, .5, 1}        
+    colors.renameColor      = colors.muteColor
+    colors.playColor        = {0.3, 1.0, 0.4, 1.0}    
   end
   -- clear colour is in a different format
   gfx.clear = colors.windowbackground[1]*256+(colors.windowbackground[2]*256*256)+(colors.windowbackground[3]*256*256*256)
 end
 
 local function launchTextEditor(filename)
-  --os.execute("open -a TextEdit \""..filename.."\"")
-  os.execute("start notepad \""..filename.."\"")
+  if ( isMac ) then
+    os.execute("open -a TextEdit \""..filename.."\"")
+  else
+    os.execute("start notepad \""..filename.."\"")
+  end
 end
 
 local function get_script_path()
@@ -278,7 +293,7 @@ function file_exists(name)
 end
 
 
-local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden, selected )
+local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden, selected, playColor, selectionColor )
   local gfx = gfx
   
   local xmi = xtrafo( x - 0.5*w )
@@ -322,12 +337,13 @@ local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgDat
   if ( hidden == 1 ) then
     gfx.set( table.unpack(fgData) )  
   else
-    gfx.set( table.unpack(fg) )
+    gfx.set( table.unpack(fgline) )
   end
   gfx.line(xmi, ymi, xma, ymi)
   gfx.line(xmi, yma, xma, yma)
   gfx.line(xmi, ymi, xmi, yma)
   gfx.line(xma, ymi, xma, yma)
+  gfx.set( 0, 0, 0, 0 )
   gfx.line(xmi+1, yma+1, xma+1, yma+1)
   gfx.line(xma+1, ymi+1, xma+1, yma+1)
   gfx.line(xmi+2, yma+2, xma+2, yma+2)
@@ -337,21 +353,31 @@ local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgDat
     gfx.set( table.unpack(rnc) )  
   end
   
+  if ( hidden == 1 ) then
+    gfx.set( table.unpack(fgData) )  
+  else
+    gfx.set( table.unpack(fg) )
+  end
   gfx.setfont(1, "Lucida Grande", math.floor(20*zoom))
   local wc, hc = gfx.measurestr(name)
   gfx.x = xtrafo(x)-0.5*wc
   gfx.y = ytrafo(y)-0.5*hc
   gfx.drawstr( name, 1, 1 )
   
-  gfx.set( table.unpack(fg) )  
+  w2 = w2*zoom
+  h2 = h2*zoom
   local xmi2 = xmi + xo
-  local xma2 = xmi + xo + w2*zoom
+  local xma2 = xmi + xo + w2
   local ymi2 = ymi + yo
-  local yma2 = ymi + yo + h2*zoom
+  local yma2 = ymi + yo + h2
+  gfx.set( table.unpack(playColor) ) 
+  gfx.rect(xmi2, ymi2, w2, h2 + 1 )
+  
+  gfx.set( table.unpack(fg) )    
   gfx.line(xmi2, ymi2, xma2, ymi2)
   gfx.line(xmi2, yma2, xma2, yma2)
   gfx.line(xmi2, ymi2, xmi2, yma2)
-  gfx.line(xma2, ymi2, xma2, yma2)  
+  gfx.line(xma2, ymi2, xma2, yma2)
   
   if ( hidden == 1 ) then
     gfx.set( bg[1]*.8, bg[2]*.8, bg[3]*.8, 0.6 )
@@ -370,7 +396,6 @@ local function box( x, y, w, h, name, fg, bg, xo, yo, w2, h2, showSignals, fgDat
     gfx.line(xmi, ymi, xmi, yma)
     gfx.line(xma, ymi, xma, yma)
     
-    local selectionColor = colors.selectionColor
     gfx.set( selectionColor[1], selectionColor[2], selectionColor[3], selected )
     gfx.rect(xmi, ymi, w+7, h+7 )
   end
@@ -523,7 +548,7 @@ function dial.create(parent, x, y, c, c2, getval, setval, disp, fg, bg)
   if ( self.getval ) then
     self.val = self.getval()
   end
-    
+  
   self.draw = function( self )
     local x  = self.x + self.parent.x
     local y  = self.y + self.parent.y
@@ -1160,7 +1185,7 @@ end
 -- BLOCK
 ---------------------------------------------------
 block = {}
-function block.create(track, x, y, FG, BG, config, viewer)
+function block.create(track, x, y, config, viewer)
   local self = {}
 
   self.viewer = viewer
@@ -1170,10 +1195,20 @@ function block.create(track, x, y, FG, BG, config, viewer)
   self.x = x
   self.y = y
   self.hidden = 0
-  self.fg = FG
-  self.bg = BG
-  self.mutedfg = {FG[1], FG[2], FG[3], .5*FG[4]}
-  self.mutedbg = {BG[1], BG[2], BG[3], .7*BG[3]}
+  
+  self.loadColors = function(self)
+    local FG = colors.textcolor
+    local BG = colors.linecolor2  
+    self.fg = FG
+    self.bg = BG
+    self.line = colors.linecolor
+    self.selectionColor = colors.selectionColor
+    self.mutedfg = {FG[1], FG[2], FG[3], .5*FG[4]}
+    self.mutedbg = {BG[1], BG[2], BG[3], .7*BG[3]}
+  end
+  
+  self:loadColors()
+  
   self.w = config.blockWidth
   self.h = config.blockHeight
   self.xo = config.muteOrigX
@@ -1182,6 +1217,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
   self.h2 = config.muteHeight
   self.checkMute = block.checkMute
   self.move = block.move
+  self.playColor = colors.playColor
   self.GUID = reaper.GetTrackGUID(self.track)
   
   self.select = function(self)
@@ -1232,7 +1268,12 @@ function block.create(track, x, y, FG, BG, config, viewer)
         self.name = "NO FX"  
       end
     end
+    
+    if ( self.isMaster ) then
+      self.name = "MASTER"
+    end
   end
+  
   self:updateName()
   
   self.drawCtrls = function()
@@ -1273,6 +1314,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
   
   -- Draw me
   self.draw = function()
+    local reaper = reaper
     if ( (self.hidden == 0) or (showHidden == 1) ) then
       local str = self.name
       local muted = reaper.GetMediaTrackInfo_Value( self.track, "B_MUTE" )
@@ -1284,41 +1326,48 @@ function block.create(track, x, y, FG, BG, config, viewer)
         str = "[" .. str .. "]"
       end
   
-      if ( showSignals > 0 ) then
-        local peak = 8.6562*math.log(reaper.Track_GetPeakInfo(self.track, 0, 0))
-        local noiseFloor = 36
-        if ( peak > 0 ) then
-          peak = 0;
-        elseif ( peak < -noiseFloor ) then
-          peak = -noiseFloor
-        end
-        peak = 1-(peak + noiseFloor)/noiseFloor
+      -- Calculate amplitude
+      local peak = 8.6562*math.log(reaper.Track_GetPeakInfo(self.track, 0, 0))
+      local noiseFloor = 36
+      if ( peak > 0 ) then
+        peak = 0;
+      elseif ( peak < -noiseFloor ) then
+        peak = -noiseFloor
+      end
+      peak = 1-(peak + noiseFloor)/noiseFloor
+      self.playColor[4] = 1-peak
+      
+      -- Keep circular buffer of signal
+      if ( showSignals > 0 ) then      
         self.data[self.dataloc] = peak
         self.dataloc = self.dataloc + 1
         if ( self.dataloc > self.dataN ) then
           self.dataloc = 1
         end
       end
+      
+      -- Color handling for selection and renaming
       local rnc
       if ( self.renaming == 1 ) then
         rnc = colors.renameColor
       end
       if ( self.selected == 1 ) then
-        self.selectedOpacity = self.selectedOpacity + .05
+        self.selectedOpacity = self.selectedOpacity + .1
         if ( self.selectedOpacity > .3 ) then
           self.selectedOpacity = .3
         end
       else
-        self.selectedOpacity = self.selectedOpacity - .05
+        self.selectedOpacity = self.selectedOpacity - .1
         if ( self.selectedOpacity < 0 ) then
           self.selectedOpacity = 0
         end
       end
       
+      -- Draw routine
       if ( muted == 1 or blockedBySolo ) then
-        box( self.x, self.y, self.w, self.h, str, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity )
+        box( self.x, self.y, self.w, self.h, str, self.line, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor )
       else
-        box( self.x, self.y, self.w, self.h, self.name, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity )
+        box( self.x, self.y, self.w, self.h, self.name, self.line, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor )
       end
     end
   end
@@ -1331,7 +1380,6 @@ function block.create(track, x, y, FG, BG, config, viewer)
     end
         
     local sends = reaper.GetTrackNumSends(self.track, 0)
-    
     if ( not self.sinks ) then
       self.sinks = {}
     end    
@@ -1341,6 +1389,7 @@ function block.create(track, x, y, FG, BG, config, viewer)
     end
     
     -- Update the sinks only if there have been changes
+    local sink = sink
     for i=0,sends-1 do
       local sinkData, GUID = sink.sinkData(self.track, i)
       if ( not self.sinks[GUID] ) then
@@ -1440,9 +1489,8 @@ function block.create(track, x, y, FG, BG, config, viewer)
           self:toggleMute()
         else
           if ( self.lastTime and (reaper.time_precise() - self.lastTime) < doubleClickInterval ) then
-            reaper.TrackFX_SetOpen(self.track, 0, true)
-            reaper.TrackFX_Show(self.track, 0, 0)            
-            reaper.TrackFX_Show(self.track, 0, 3)            
+            reaper.TrackFX_Show(self.track, 0, 3)
+            reaper.TrackFX_SetOpen(self.track, 0, false)
           end
           self.lastTime = reaper.time_precise()
   
@@ -1647,13 +1695,15 @@ function fxlist.create(tab, x, y, name)
     maxw = 0
     for i,v in pairs( tab ) do
       if type(v) == "table" then
-        w, h = gfx.measurestr(i)
-        txts[c] = i
-        types[c] = 1
-      else
+        w, h = gfx.measurestr(v.name__)
+        txts[c] = v.name__
+        types[c] = i
+      elseif i ~= "name__" then
         w, h = gfx.measurestr(v)
         txts[c] = v
         types[c] = 0
+      else
+        c = c - 1
       end
       if ( w > maxw ) then
         maxw = w
@@ -1693,7 +1743,7 @@ function fxlist.create(tab, x, y, name)
     for i=1,c do
       gfx.x = x
       gfx.drawstr(txts[i])
-      if ( types[i] == 1 ) then
+      if ( types[i] > 0 ) then
         gfx.line( x+w + pad, gfx.y - 3 + 0.5*h + 1, x+w+pad + pad, gfx.y + 0.5*h+1 )
         gfx.line( x+w + pad, gfx.y + 3 + 0.5*h + 1, x+w+pad + pad, gfx.y + 0.5*h+1 )        
       end      
@@ -1707,12 +1757,12 @@ function fxlist.create(tab, x, y, name)
       gfx.rect(x-pad, y+(i-1)*h, w+pad+arrowpad+pad, h)
       
       -- It's a table, expand!
-      if ( types[i] == 1 ) then
+      if ( types[i] > 0 ) then
         if ( self.nestedTable and self.nestedTableIdx ~= i) then
           self.nestedTable = nil
         end
         if ( not self.nestedTable ) then
-          self.nestedTable = fxlist.create(self.tab[self.txts[i]], x+w+pad+arrowpad+pad+2, y+(i-1)*h+pad, self.txts[i])
+          self.nestedTable = fxlist.create(self.tab[self.types[i]], x+w+pad+arrowpad+pad+2, y+(i-1)*h+pad, self.txts[i])
         end
       else
         if ( self.nestedTable ) then
@@ -1761,7 +1811,7 @@ end
 
 function machineView:addTrack(track, x, y)
   local GUID = reaper.GetTrackGUID(track)
-  self.tracks[GUID] = block.create(track, x, y, colors.textcolor, colors.linecolor2, self.config, self)
+  self.tracks[GUID] = block.create(track, x, y, self.config, self)
   return self.tracks[GUID]
 end
 
@@ -1968,12 +2018,15 @@ function machineView:undo()
   reaper.Undo_DoUndo2(0)
 end
 
+--gfx_rectto(0.5*fftsize, 0.5*fftsize);
+
+SFX = 0
+
 ------------------------------
 -- Main update loop
 -----------------------------
 local function updateLoop()
   local self = machineView    
-  
   reaper.PreventUIRefresh(1)
   -- Something serious happened. Maybe the user loaded a new file?
   if ( not pcall( function() self:loadTracks() end ) ) then
@@ -1983,7 +2036,26 @@ local function updateLoop()
     self:loadTracks()
   end
   
+  if ( SFX == 1 ) then
+    gfx.setimgdim(2, gfx.w, gfx.h)
+    gfx.dest = 2
+    gfx.mode = 0
+    local sc = 0.001
+    gfx.x = gfx.w * sc * ( math.random()-0.5 ) + ( math.random() - 0.5 ) * 4
+    gfx.y = gfx.h * sc * ( math.random()-0.5 ) + ( math.random() - 0.5 ) * 4
+    gfx.blit(2,1+sc,.001) 
+    gfx.x = 0 gfx.y = 0
+    gfx.blurto(gfx.w, gfx.h)
+  end
+  
   self:updateGUI()
+  
+  if ( SFX == 1 ) then
+    gfx.dest = -1
+    gfx.mode = 0
+    gfx.blit(2, 1, rotation, 0, 0, gfx.w, gfx.h, 0, 0, gfx.w, gfx.h, rotxoffs, rotyoffs)
+  end
+  
   reaper.PreventUIRefresh(-1)
   prevChar = lastChar
   lastChar = gfx.getchar()
@@ -2247,9 +2319,22 @@ local function updateLoop()
         showTrackName = 1 - showTrackName
         machineView:updateNames()
         self:storePositions()
+      elseif ( lastChar == 26165 ) then
+        night = 1 - night
+        if ( night == 1 ) then
+          self:loadColors("dark")
+        else    
+          self:loadColors("default")
+        end
+        for i,v in pairs(self.tracks) do
+          v:loadColors()
+        end
+        self:storePositions()        
       elseif ( lastChar == 26164 ) then
         showHidden = 1 - showHidden
         self:storePositions()
+      elseif ( lastChar == 26168 ) then
+        SFX = 1 - SFX
       elseif ( lastChar == 6697264 ) then
         launchTextEditor( getConfigFn() )
       end
@@ -2495,12 +2580,53 @@ function machineView:loadTemplates()
   local tpath = reaper.GetResourcePath() .. templates.slash .. 'TrackTemplates'
   
   local templateTable = self:dirToTable(tpath, templates.slash)
-  FXlist.Templates = templateTable
+  return templateTable
+end
+
+local function checkOS()
+  local rpath = reaper.GetResourcePath()
+  if not rpath:find(":\\") then
+    isMac = 1
+  end
+end
+
+local function sortTable(data)
+  -- Find the keys of interest
+  local tableKeys = {}
+  local entryKeys = {}
+  for i,v in pairs(data) do
+    if type(v) == "table" then
+      tableKeys[#tableKeys+1] = i
+    else
+      entryKeys[#entryKeys+1] = v
+    end
+  end
+  table.sort( tableKeys )
+  table.sort( entryKeys )
+  
+  -- Construct the integer keyed table recursively
+  local newTable = {}
+  for i,v in pairs( tableKeys ) do
+    newTable[i] = sortTable( data[v] )
+    newTable[i].name__ = v
+  end
+  for i,v in pairs( entryKeys ) do
+    newTable[i+#tableKeys] = v
+  end
+  
+  return newTable
 end
 
 local function Main()
   local self = machineView
   local reaper = reaper
+  
+  checkOS()
+  if ( isMac ) then
+    templates.slash = '/'
+  else
+    templates.slash = '\\'
+  end
   
   local filename = getConfigFn()
   if ( file_exists(filename) == false ) then
@@ -2520,9 +2646,19 @@ local function Main()
     return;
   end
   
-  self:loadTemplates()
+  FXlist = sortTable(FXlist)
+  FXlist[#FXlist+1] = sortTable(self:loadTemplates())
+  FXlist[#FXlist].name__ = "Templates"
   
-  self:loadColors("default")  
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "night")
+  if ( ok ) then showN = tonumber( v ) end
+  night = showN or night
+  if ( night == 1 ) then
+    self:loadColors("dark")
+  else    
+    self:loadColors("default")
+  end
+  
   self:initializeTracks()
   
   gfx.init("Hackey Machines", self.config.width, self.config.height, 0, self.config.x, self.config.y)
@@ -2555,6 +2691,7 @@ function machineView:storePositions()
   reaper.SetProjExtState(0, "MVJV001", "showSignals", tostring(showSignals))
   reaper.SetProjExtState(0, "MVJV001", "showTrackName", tostring(showTrackName))
   reaper.SetProjExtState(0, "MVJV001", "showHidden", tostring(showHidden))  
+  reaper.SetProjExtState(0, "MVJV001", "night", tostring(night))
 end
 
 function machineView:loadPositions()
