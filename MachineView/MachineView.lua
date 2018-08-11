@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.16
+@version 0.18
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -32,6 +32,7 @@
   
   | Key                                   | Action                                                                |
   |:--------------------------------------|:----------------------------------------------------------------------|
+  | F1                                    | Help                                                                  |
   | F2                                    | Enables and disables visualization of signals                         |
   | F3                                    | Toggles between track and machine names                               |
   | F4                                    | Toggle showing all machines versus hiding some                        |
@@ -54,6 +55,13 @@
 
 --[[
  * Changelog:
+ * v0.18 (2018-08-11)
+   + Pass through CTRL+Z.
+ * v0.17 (2018-08-11)
+   + Added controls to change source and dest channel.
+   + Improved undo handling.
+   + Display panning 0L(eft) as C(enter).
+   + Added small help under F1.
  * v0.16 (2018-08-09)
    + Added multi-delete and multi-hide.
  * v0.15 (2018-08-07)
@@ -110,6 +118,26 @@ machineView.config.muteOrigX = 4
 machineView.config.muteOrigY = 4
 machineView.config.muteWidth = 14
 machineView.config.muteHeight = 7
+
+help = {
+  {"Shift drag machine", "Connect machines"}, 
+  {"Leftclick arrow", "Volume, panning, channel and disconnect controls"},
+  {"Ctrlclick machine", "Select multiple machines"},
+  {"Rightclick machine", "Solo, mute, rename, duplicate or remove machine"},
+  {"Rightclick background", "Insert machine"},
+  {"Middleclick arrow", "Disconnect signal cable"},
+  {"Middleclick drag", "Shift field of view"},
+  {"Scrollwheel", "Adjust zoom level"},
+  {"Double leftclick machine", "Open machine VST GUI"},
+  {"Leftclick drag", "Select multiple machines"},
+  {"Enter", "Simulate forces between machines"},
+  {"Del", "Delete machine"},
+  {"H", "Hide machine"},
+  {"F1", "Help"},
+  {"F2", "Toggle signal visualization"},
+  {"F3", "Toggle showing track names versus machine names"},
+  {"F4", "Toggle showing hidden machines"},
+}
 
 defaultFile = "FXlist = {\n  Instruments = {\n    \"Kontakt\",\n    \"Play\",\n    \"VacuumPro\",\n    \"FM8\",\n    \"Massive\",\n    \"Reaktor 6\",\n    \"Oatmeal\",\n    \"Z3TA+2\",\n    \"Firebird\",\n    \"SQ8L\",\n    \"Absynth 5\",\n    \"Tyrell N6\",\n    \"Zebralette\",\n    \"Podolski\",\n    \"Hybrid\",\n    \"mda SubSynth\",\n    \"Crystal\",\n    \"Rapture\",\n    \"Claw\",\n    \"DX10\",\n    \"JX10\",\n    \"polyIblit\",\n    \"dmiHammer\"\n  },\n  Drums = {\n    \"Battery4\",\n    \"VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)\",\n    \"Kickbox\",\n  },\n  Effects = {\n    EQ = {\n      \"ReaEq\",\n     \"BootEQmkII\",\n      \"VST3: OneKnob Phatter Stereo\"\n    },\n    Filter = {\n      \"BiFilter\",\n      \"MComb\",\n      \"AtlantisFilter\",\n      \"ReaFir\",\n      \"Apple 12-Pole Filter\",\n      \"Apple 2-Pole Lowpass Filter\",\n      \"Chebyshev 4-Pole Filter\",\n      \"JS: Exciter\",\n    },\n   Modulation = {\n      \"Chorus (Improved Shaping)\",\n      \"Chorus (Stereo)\",\n      \"Chorus CH-1\",\n      \"Chorus CH-2\",\n      \"VST3: MFlanger\",\n      \"VST3: MVibrato\",\n      \"VST3: MPhaser\",\n      \"VST3: Tremolo\",\n    },\n    Dynamics = {\n      \"VST3: API-2500 Stereo\",\n      \"VST3: L1 limiter Stereo\",\n      \"VST3: TransX Wide Stereo\",\n      \"VST3: TransX Multi Stereo\",\n      \"ReaComp\",\n      \"ReaXComp\",\n      \"VST3:Percolate\",\n    },\n    Distortion = {\n      \"Amplitube 3\",\n      \"Renegade\",\n      \"VST3: MSaturator\", \n       \"VST3: MWaveShaper\",\n     \"VST3: MWaveFolder\",\n      \"Guitar Rig 5\",\n      \"Cyanide 2\",\n      \"Driver\",\n    },\n    Reverb = {\n      \"ReaVerb\",\n      \"VST3: IR-L fullStereo\",\n      \"VST3: H-Reverb Stereo/5.1\",\n      \"VST3: H-Reverb long Stereo/5.1\",\n      \"VST3: RVerb Stereo\",\n      \"epicVerb\",\n      \"Ambience\",\n      \"Hexaline\",\n      \"ModernFlashVerb\",\n    },\n    Delay = {\n      \"ReaDelay\",\n      \"VST3: H-Delay Stereo\",\n      \"VST3: STADelay\",\n      \"MjRotoDelay\",\n      \"ModernSpacer\",\n    },\n    Mastering = {\n      \"VST3: Drawmer S73\",\n      \"VST3: L1+ Ultramaximizer Stereo\",\n      \"VST3: Elephant\",\n    },\n    Strip = {\n      \"VST3: Scheps OmniChannel Stereo\",\n      \"VST3: SSLGChannel Stereo\",\n    },\n    Stereo = {\n      \"VST3: S1 Imager Stereo\",\n      \"VST3: MSpectralPan\",\n      \"VST3: MStereoExpander\",\n      \"VST3: Propane\",\n      \"Saike StereoManipulator\",\n    },\n    Gate = {\n      \"ReaGate\",\n    },\n    Pitch = {\n      \"ReaPitch\",\n      \"ReaTune\",\n    },\n    Vocoder = {\n      \"mda Talkbox\",\n    },\n    Analysis = {\n      \"SideSpectrum Meter\"\n    },\n  },\n}\n"
 print(defaultFile)
@@ -793,55 +821,122 @@ function sink_ctrls.create(viewer, x, y, loc)
   self.color  = { 0.103, 0.103, 0.103, 0.9 }
   self.edge   = { 0.203, 0.23, 0.13, 0.9 }  
   
+  local withChans = 1
   self.offsetX  = -20
   self.offsetY  = -20
-  self.vW       = 80
-  self.vH       = 80
-  
-  local vW = self.vW
-  local vH = self.vH
+  self.inner    = .16*80
+  self.outer    = .2*80
   self.ctrls = {}
  
   -- Setter and getter lambdas
-  local setVol, getVol, setPan, getPan, dispVol, dispPan
+  local setVol, getVol, setPan, getPan, dispVol, dispPan, convertToSend
   if ( loc.sendidx < 0 ) then
     -- Main send
+    withChans  = 0
     getVol = function()     return reaper.GetMediaTrackInfo_Value(loc.track, "D_VOL")/2 end
     getPan = function()     return (reaper.GetMediaTrackInfo_Value(loc.track, "D_PAN")+1)*.5 end
     setVol = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_VOL", val*2) end
-    setPan = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_PAN", val*2-1) end    
+    setPan = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_PAN", val*2-1) end
+    if ( not loc.isMaster ) then
+      convertToSend = function() self.convertToSend(self) end
+    end
   else
     getVol = function()     return reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL")/2 end
     getPan = function()     return (reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN")+1)*.5 end
     setVol = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL", val*2) end
     setPan = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN", val*2-1) end
+    
+    local NCH = 32
+    getTarget = function()  return reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "I_DSTCHAN")/NCH end
+    getSource = function()  return reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "I_SRCCHAN")/NCH end    
+    dispCh    = function(val) return string.format("%2d/%2d", math.floor(val*NCH)+1, math.floor(val*NCH)+2 ) end
+    
+    setTarget = function(val) 
+      local nTarget = math.floor(val*NCH)
+      local ctrack = reaper.GetMediaTrackInfo_Value(loc.dest, "I_NCHAN")
+      if ( ctrack < nTarget ) then
+        reaper.SetMediaTrackInfo_Value(loc.dest, "I_NCHAN", nTarget)
+      end
+      reaper.SetTrackSendInfo_Value(loc.source, 0, loc.sendidx, "I_DSTCHAN", nTarget )
+    end
+    
+    setSource = function(val) 
+      local nTarget = math.floor(val*NCH)
+      local ctrack = reaper.GetMediaTrackInfo_Value(loc.source, "I_NCHAN")
+      if ( ctrack < nTarget ) then
+        reaper.SetMediaTrackInfo_Value(loc.source, "I_NCHAN", nTarget)
+      end
+      reaper.SetTrackSendInfo_Value(loc.source, 0, loc.sendidx, "I_SRCCHAN", math.floor(val*NCH) )
+    end
   end
   
   dispVol = function(val) return string.format("%.1f",20*math.log(val*2)/math.log(10)) end
   dispPan = function(val) 
-    if ( val > 0.5 ) then
+    if ( val > 0.501 ) then
       return string.format("%2dR",math.ceil(200*(val-0.5)))
-    else
+    elseif ( val < 0.499 ) then
       return string.format("%2dL",math.floor(200*(0.5-val)))
+    else
+      return string.format("C",math.floor(200*(0.5-val)))    
     end
   end
   
+  if ( withChans == 1 ) then
+    self.vW       = 120
+    self.vH       = 80
+  else
+    self.vW       = 80
+    self.vH       = 80  
+  end
+  
+  local vW = self.vW
+  local vH = self.vH  
+  
   local killCallback = function() self.kill(self) end
   
-  self.ctrls[1] = dial.create(self, .25*vW + self.offsetX, .25*vH + self.offsetY, .14*vW, .2*vW, getVol, setVol, dispVol)
-  self.ctrls[1].label = "V"
-  self.ctrls[2] = dial.create(self, .75*vW + self.offsetX, .25*vH + self.offsetY, .14*vW, .2*vW, getPan, setPan, dispPan)
-  self.ctrls[2].label = "P"
-  self.ctrls[2].drawFromCenter = 1  
-  self.ctrls[3] = button.create(self, .75*vW + self.offsetX, .75*vH + self.offsetY, .14*vW, .2*vW, killCallback)
-  self.ctrls[3].label = "REM"
+  if ( withChans == 0 ) then
+    self.ctrls[1] = dial.create(self, .25*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getVol, setVol, dispVol)
+    self.ctrls[1].label = "V"
+    self.ctrls[2] = dial.create(self, .75*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getPan, setPan, dispPan)
+    self.ctrls[2].label = "P"
+    self.ctrls[2].drawFromCenter = 1  
+    self.ctrls[3] = button.create(self, .75*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, killCallback)
+    self.ctrls[3].label = "REM"
+    if ( not loc.isMaster ) then
+      self.ctrls[4] = button.create(self, .25*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, convertToSend)
+      self.ctrls[4].label = "SEND"
+    end
+  else
+    self.ctrls[1] = dial.create(self, .2*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getVol, setVol, dispVol)
+    self.ctrls[1].label = "V"
+    self.ctrls[2] = dial.create(self, .5*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getPan, setPan, dispPan)
+    self.ctrls[2].label = "P"
+    self.ctrls[2].drawFromCenter = 1  
+
+    self.ctrls[3] = dial.create(self, .2*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, getSource, setSource, dispCh)
+    self.ctrls[3].label = "From"
+    self.ctrls[4] = dial.create(self, .5*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, getTarget, setTarget, dispCh)
+    self.ctrls[4].label = "To"
+
+    self.ctrls[5] = button.create(self, .8*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, killCallback)
+    self.ctrls[5].label = "REM"
+  end
+  
+  self.convertToSend = function( self )
+    reaper.Undo_BeginBlock()
+    reaper.SetMediaTrackInfo_Value(loc.track, "B_MAINSEND", 0)
+    reaper.CreateTrackSend(loc.track, loc.dest)
+    reaper.Undo_EndBlock("Hackey Machines: Convert mainsend to custom send", -1)    
+  end  
   
   self.kill = function( self )
+    reaper.Undo_BeginBlock()
     if ( loc.sendidx < 0 ) then
       reaper.SetMediaTrackInfo_Value(loc.track, "B_MAINSEND", 0)
     else
       reaper.RemoveTrackSend(loc.track, 0, loc.sendidx)
     end
+    reaper.Undo_EndBlock("Hackey Machines: Remove signal cable", -1)
   end
   
   self.draw = function( self )
@@ -890,11 +985,16 @@ function sink_ctrls.create(viewer, x, y, loc)
   
   self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
     local captured = false
-    for i,v in pairs(self.ctrls) do
-      captured = v:checkMouse(x, y, lx, ly, self.lastCapture, lmb, rmb, mmb)
-      if ( captured ) then
-        self.lastCapture = v
-        break;
+    if ( self.lastCapture ) then
+      captured = self.lastCapture:checkMouse(x, y, lx, ly, self.lastCapture, lmb, rmb, mmb)
+    end
+    if ( not captured ) then
+      for i,v in pairs(self.ctrls) do
+        captured = v:checkMouse(x, y, lx, ly, self.lastCapture, lmb, rmb, mmb)
+        if ( captured ) then
+          self.lastCapture = v
+          break;
+        end
       end
     end
     if ( not captured ) then
@@ -923,14 +1023,16 @@ sink = {}
 function sink.sinkData(track, idx)
   -- It's a specific send
   local parentGUID = reaper.GetTrackGUID(track)
+  local targetTrack
+  local isMaster
   if ( idx > - 1 ) then
     --local target      = reaper.GetTrackSendInfo_Value(track, 0, idx, "I_DSTCHAN")
-    local targetTrack = getSendTargetTrack( track, idx )
+    targetTrack       = getSendTargetTrack( track, idx )
     GUID              = reaper.GetTrackGUID(targetTrack)
     sinkType          = SINKTYPES.SEND
   else
     -- It's a main send of some sort
-    local targetTrack = reaper.GetParentTrack(track)
+    targetTrack       = reaper.GetParentTrack(track)
     if ( targetTrack ) then
       GUID            = reaper.GetTrackGUID(targetTrack)
       sinkType        = SINKTYPES.PARENT
@@ -938,12 +1040,13 @@ function sink.sinkData(track, idx)
       local depth = reaper.GetTrackDepth(track)
       if ( depth == 0 ) then
         GUID          = reaper.GetTrackGUID( reaper.GetMasterTrack(0) )
+        isMaster      = 1
         sinkType      = SINKTYPES.MASTER
       end
     end
   end
   
-  return {parentGUID=parentGUID, GUID=GUID, sinkType=sinkType}, parentGUID..GUID
+  return {parentGUID=parentGUID, GUID=GUID, source=track, dest=targetTrack, sinkType=sinkType, isMaster=isMaster}, parentGUID..GUID..idx
 end
   
 
@@ -952,7 +1055,7 @@ function sink.create(viewer, track, idx, sinkData)
   local self          = {}
   self.viewer         = viewer
   
-  self.loc            = {track=track, sendidx=idx}
+  self.loc            = {track=track, sendidx=idx, source=sinkData.source, dest=sinkData.dest, isMaster=sinkData.isMaster}
   self.from           = sinkData.parentGUID
   self.GUID           = sinkData.GUID
   self.type           = sinkData.sinkType
@@ -1804,6 +1907,10 @@ function machineView:updateSelection()
   end
 end
 
+function machineView:undo()
+  reaper.Undo_DoUndo2(0)
+end
+
 ------------------------------
 -- Main update loop
 -----------------------------
@@ -1825,7 +1932,50 @@ local function updateLoop()
   lastChar = gfx.getchar()
  
   -- Some machine is being renamed (lock everything control related while this is occurring)
-  if ( self.renameTrack ) then
+  if ( self.help ) then
+    local wcmax = 0
+    local wcmax2 = 0
+    for i,v in pairs(help) do
+      local wc, hc = gfx.measurestr(v[1])
+      local wc2, hc = gfx.measurestr(v[2])
+      if ( wc > wcmax ) then
+        wcmax = wc
+      end
+      if ( wc2 > wcmax2 ) then
+        wcmax2 = wc2
+      end
+    end
+
+    local X = 50
+    local Y = 50
+    local wc, hc = gfx.measurestr("c")
+    gfx.set(0.75, 0.73, 0.75, 0.6)
+    gfx.rect(X-10, Y-10,wcmax+wcmax2+40,hc*#help+20)
+    gfx.rect(X-9, Y-9,wcmax+wcmax2+39,hc*#help+19)
+    gfx.rect(X-8, Y-8,wcmax+wcmax2+38,hc*#help+18)
+    for i,v in pairs(help) do
+      gfx.set(0,0,0,1)
+      local wc, hc = gfx.measurestr(v[1])
+      gfx.x = X + wcmax - wc
+      gfx.y = 10+i*hc+20
+      gfx.drawstr( v[1], 1, 1 )
+      gfx.x = X + wcmax + 20
+      gfx.drawstr( v[2], 1, 1 )    
+    end
+    
+    gfx.update()
+    reaper.defer(updateLoop)
+    if ( lastChar ~= -1 ) then
+      if ( gfx.mouse_cap > 0 ) then
+        self.help = nil
+      end
+      if ( lastChar ~= 0 ) then
+        self.help = nil
+      end
+    else
+      self:terminate()
+    end
+  elseif ( self.renameTrack ) then
     if ( lastChar ~= -1 ) then
       gfx.update()
       reaper.defer(updateLoop)
@@ -2021,10 +2171,14 @@ local function updateLoop()
       --print(lastChar)
       if ( lastChar == 27 or lastChar == 6579564.0 ) then
         self:deleteMachines()
+      elseif ( lastChar == 26 and ( gfx.mouse_cap & 4 > 0 ) ) then
+        self:undo()
       elseif ( lastChar == 104 ) then
         self:hideMachines()
       elseif ( lastChar == 13 ) then
         self.iter = 10
+      elseif ( lastChar == 26161 ) then
+        self.help = 1
       elseif ( lastChar == 26162 ) then
         showSignals = 1 - showSignals
         self:storePositions()
