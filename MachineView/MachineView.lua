@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.18
+@version 0.19
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -55,6 +55,8 @@
 
 --[[
  * Changelog:
+ * v0.19 (2018-08-12)
+   + Added template support.
  * v0.18 (2018-08-11)
    + Pass through CTRL+Z.
  * v0.17 (2018-08-11)
@@ -119,6 +121,10 @@ machineView.config.muteOrigY = 4
 machineView.config.muteWidth = 14
 machineView.config.muteHeight = 7
 
+templates = {}
+templates.slash = '\\'
+templates.extension = ".RTrackTemplate"
+
 help = {
   {"Shift drag machine", "Connect machines"}, 
   {"Leftclick arrow", "Volume, panning, channel and disconnect controls"},
@@ -140,7 +146,7 @@ help = {
 }
 
 defaultFile = "FXlist = {\n  Instruments = {\n    \"Kontakt\",\n    \"Play\",\n    \"VacuumPro\",\n    \"FM8\",\n    \"Massive\",\n    \"Reaktor 6\",\n    \"Oatmeal\",\n    \"Z3TA+2\",\n    \"Firebird\",\n    \"SQ8L\",\n    \"Absynth 5\",\n    \"Tyrell N6\",\n    \"Zebralette\",\n    \"Podolski\",\n    \"Hybrid\",\n    \"mda SubSynth\",\n    \"Crystal\",\n    \"Rapture\",\n    \"Claw\",\n    \"DX10\",\n    \"JX10\",\n    \"polyIblit\",\n    \"dmiHammer\"\n  },\n  Drums = {\n    \"Battery4\",\n    \"VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)\",\n    \"Kickbox\",\n  },\n  Effects = {\n    EQ = {\n      \"ReaEq\",\n     \"BootEQmkII\",\n      \"VST3: OneKnob Phatter Stereo\"\n    },\n    Filter = {\n      \"BiFilter\",\n      \"MComb\",\n      \"AtlantisFilter\",\n      \"ReaFir\",\n      \"Apple 12-Pole Filter\",\n      \"Apple 2-Pole Lowpass Filter\",\n      \"Chebyshev 4-Pole Filter\",\n      \"JS: Exciter\",\n    },\n   Modulation = {\n      \"Chorus (Improved Shaping)\",\n      \"Chorus (Stereo)\",\n      \"Chorus CH-1\",\n      \"Chorus CH-2\",\n      \"VST3: MFlanger\",\n      \"VST3: MVibrato\",\n      \"VST3: MPhaser\",\n      \"VST3: Tremolo\",\n    },\n    Dynamics = {\n      \"VST3: API-2500 Stereo\",\n      \"VST3: L1 limiter Stereo\",\n      \"VST3: TransX Wide Stereo\",\n      \"VST3: TransX Multi Stereo\",\n      \"ReaComp\",\n      \"ReaXComp\",\n      \"VST3:Percolate\",\n    },\n    Distortion = {\n      \"Amplitube 3\",\n      \"Renegade\",\n      \"VST3: MSaturator\", \n       \"VST3: MWaveShaper\",\n     \"VST3: MWaveFolder\",\n      \"Guitar Rig 5\",\n      \"Cyanide 2\",\n      \"Driver\",\n    },\n    Reverb = {\n      \"ReaVerb\",\n      \"VST3: IR-L fullStereo\",\n      \"VST3: H-Reverb Stereo/5.1\",\n      \"VST3: H-Reverb long Stereo/5.1\",\n      \"VST3: RVerb Stereo\",\n      \"epicVerb\",\n      \"Ambience\",\n      \"Hexaline\",\n      \"ModernFlashVerb\",\n    },\n    Delay = {\n      \"ReaDelay\",\n      \"VST3: H-Delay Stereo\",\n      \"VST3: STADelay\",\n      \"MjRotoDelay\",\n      \"ModernSpacer\",\n    },\n    Mastering = {\n      \"VST3: Drawmer S73\",\n      \"VST3: L1+ Ultramaximizer Stereo\",\n      \"VST3: Elephant\",\n    },\n    Strip = {\n      \"VST3: Scheps OmniChannel Stereo\",\n      \"VST3: SSLGChannel Stereo\",\n    },\n    Stereo = {\n      \"VST3: S1 Imager Stereo\",\n      \"VST3: MSpectralPan\",\n      \"VST3: MStereoExpander\",\n      \"VST3: Propane\",\n      \"Saike StereoManipulator\",\n    },\n    Gate = {\n      \"ReaGate\",\n    },\n    Pitch = {\n      \"ReaPitch\",\n      \"ReaTune\",\n    },\n    Vocoder = {\n      \"mda Talkbox\",\n    },\n    Analysis = {\n      \"SideSpectrum Meter\"\n    },\n  },\n}\n"
-print(defaultFile)
+--print(defaultFile)
 doubleClickInterval = 0.2
 origin = { 0, 0 }
 zoom = 0.8
@@ -1619,11 +1625,12 @@ function block.create(track, x, y, FG, BG, config, viewer)
 end
 
 fxlist = {}
-function fxlist.create(tab, x, y)
+function fxlist.create(tab, x, y, name)
   local self = {}  
   self.x = x
   self.y = y
   self.tab = tab
+  self.name = name
   
   self.prepTable = function( self, tab )
     gfx.setfont(1, "Verdana", 14)
@@ -1699,14 +1706,14 @@ function fxlist.create(tab, x, y)
           self.nestedTable = nil
         end
         if ( not self.nestedTable ) then
-          self.nestedTable = fxlist.create(self.tab[self.txts[i]], x+w+pad+arrowpad+pad+2, y+(i-1)*h+pad)
+          self.nestedTable = fxlist.create(self.tab[self.txts[i]], x+w+pad+arrowpad+pad+2, y+(i-1)*h+pad, self.txts[i])
         end
       else
         if ( self.nestedTable ) then
           self.nestedTable = nil
         end
         if ( ( gfx.mouse_cap & 1 ) > 0 ) then
-          return 1, txts[i], self.x, self.y
+          return 1, {self.name, txts[i]}, self.x, self.y
         end
       end      
     else
@@ -1716,7 +1723,6 @@ function fxlist.create(tab, x, y)
       if ( ( gfx.mouse_cap & 2 ) == 0 ) then
         self.hasbeenzero = 1
       end
-      
     end
     
     if ( self.nestedTable ) then
@@ -1724,7 +1730,7 @@ function fxlist.create(tab, x, y)
       if ( ret > returnval ) then
         returnval = ret
         if ( ret > 0 ) then
-          return 1, val, self.x, self.y
+          return 1, {self.name, table.unpack(val)}, self.x, self.y
         end
       end
     end
@@ -1813,6 +1819,26 @@ function machineView:renameMe(track)
   local jnk, name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", 0 )
   self.oldTrackName = name
   self.tracks[self.renameGUID].renaming = 1
+end
+
+function machineView:insertTemplate(val, x, y)
+  local v
+  local slash = templates.slash
+  local ext = templates.extension
+  
+  if ( val and val[2] ) then
+    self:storePositions()  
+    local str = reaper.GetResourcePath() .. slash .. 'TrackTemplates'
+    for i=3,#val do
+      str = str .. slash .. val[i]
+    end
+    print(str)
+    reaper.Main_openProject(str .. templates.extension)
+    insX = x;
+    insY = y;
+    self:loadTracks()
+    self:loadPositions()
+  end
 end
 
 function machineView:insertMachine(machine, x, y)
@@ -2025,7 +2051,11 @@ local function updateLoop()
         if ( ret > 0 ) then
           self.insertingMachine = nil
           self.FX_list = nil
-          self:insertMachine(val, ix, iy)
+          if ( val[2] == "Templates" ) then
+            self:insertTemplate(val, ix, iy)
+          else
+            self:insertMachine(val[#val], ix, iy)
+          end
         end
       end
       gfx.update()
@@ -2252,7 +2282,7 @@ function machineView:loadTracks()
       if ( self.tracks[GUID] ) then
         self.tracks[GUID].found = 1
       else
-        self:addTrack(track, math.floor(.5*self.config.width*math.random()), math.floor(.5*self.config.height*math.random()))
+        self:addTrack(track, math.floor((insX or 0) + .1*self.config.width*math.random()), (insY or 0) + math.floor(.1*self.config.height*math.random()))
       end
       
       -- Is it selected? Then add it to the selection list
@@ -2402,6 +2432,41 @@ function machineView:calcForces()
   return fx, fy
 end
 
+local function GetFileExtension(str)
+  return str:match("^.+(%..+)$")
+end
+
+function machineView:dirToTable(dir, slash)
+  local structure = {}
+  local i = 0
+  local subdir = reaper.EnumerateSubdirectories(dir, 0)
+  while subdir do
+    structure[subdir] = self:dirToTable(dir .. slash .. subdir, slash)
+    i = i + 1
+    subdir = reaper.EnumerateSubdirectories(dir, i)
+  end
+
+  local file = reaper.EnumerateFiles(dir, 0)
+  local ext = templates.extension
+  local nExt = string.len(ext)
+  while file do
+    if ( GetFileExtension(file) == ext ) then
+      structure[#structure+1] = file:sub(1,-1-nExt)
+    end
+    file = reaper.EnumerateFiles(dir, i)
+    i = i + 1
+  end
+
+  return structure
+end
+
+function machineView:loadTemplates()
+  local tpath = reaper.GetResourcePath() .. templates.slash .. 'TrackTemplates'
+  
+  local templateTable = self:dirToTable(tpath, templates.slash)
+  FXlist.Templates = templateTable
+end
+
 local function Main()
   local self = machineView
   local reaper = reaper
@@ -2423,6 +2488,8 @@ local function Main()
     launchTextEditor(filename)
     return;
   end
+  
+  self:loadTemplates()
   
   self:loadColors("default")  
   self:initializeTracks()
