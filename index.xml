@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="b422bf11e1417f4d0421e13725f866235f88c1e6">
+<index version="1" name="Routing tools" commit="f16eb353e6646b51a6e39f6b4ac28034504afe99">
   <category name="MachineView">
     <reapack name="MachineView.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -14,7 +14,7 @@
 {\pard \ql \f0 \sa180 \li0 \fi0 Hackey Machines provides an alternative way for visualizing and manipulating the routing in REAPER. Clicking a machine with the outer mouse button or a signal cable with the inner mouse button opens context dependent options. Clicking anywhere with the outer mouse button opens a window to insert new machines.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 Connecting two machines can be done by holding shift, clicking the source machine and then dragging the line over to the target machine. Scrolling with the mousewheel zooms, while clicking with the middle mouse button and dragging pans the field of view. Middle mouse on a connection disconnects the two machines. Doubleclicking a machine opens its GUI (if it has one).\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 If the wiring turns messy, hit ENTER to simulate the force-based rearranger for a few more steps. It combines spring forces between connected machines and repelling forces between all machines to try and optimally layout the machine graph.\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 | Key | Action | |:--------------------------------------|:----------------------------------------------------------------------| | F1 | Help | | F2 | Enables and disables visualization of signals | | F3 | Toggles between track and machine names | | F4 | Toggle showing all machines versus hiding some | | Shift + Drag to other machine | Connect machines | | Left mouse button on connection arrow | Open subwindow to manipulate volume, panning or disconnect machines | | Right mouse button on machine | Open window to solo, mute, rename, duplicate or remove the machine | | Middle mouse button | Disconnect machine | | Middle mouse button + Drag | Shift field of view | | Scrollwheel | Adjust zoom level | | Doubleclick machine | Opens machine GUI (if present) | | Enter | Simulate forces |\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 | Key | Action | |:--------------------------------------|:----------------------------------------------------------------------| | F1 | Help | | F2 | Enables and disables visualization of signals | | F3 | Toggles between track and machine names | | F4 | Toggle showing all machines versus hiding some | | F5 | Switch to night mode | | Shift + Drag to other machine | Connect machines | | Left mouse button on connection arrow | Open subwindow to manipulate volume, panning or disconnect machines | | Right mouse button on machine | Open window to solo, mute, rename, duplicate or remove the machine | | Middle mouse button | Disconnect machine | | Middle mouse button + Drag | Shift field of view | | Scrollwheel | Adjust zoom level | | Doubleclick machine | Opens machine GUI (if present) | | Enter | Simulate forces |\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 If you use this plugin and enjoy it let me/others know. If you run into any bugs and figure out a way to reproduce them, please open an issue on the plugin's github page {\field{\*\fldinst{HYPERLINK "https://github.com/JoepVanlier/Hackey-Trackey/issues"}}{\fldrslt{\ul
 here
 }}}
@@ -93,6 +93,14 @@ it interfering with what is being updated in the repo.]]></changelog>
       <version name="0.19" author=": Joep Vanlier" time="2018-08-11T18:04:25Z">
         <changelog><![CDATA[+ Added template support.]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/b422bf11e1417f4d0421e13725f866235f88c1e6/MachineView/MachineView.lua</source>
+      </version>
+      <version name="0.20" author=": Joep Vanlier" time="2018-08-11T19:21:21Z">
+        <changelog><![CDATA[+ Made delete behaviour more buzz-like (deleting a machine removes all connections).]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/af46a9ad7523d1bcdff80946efc79b1fca8f825c/MachineView/MachineView.lua</source>
+      </version>
+      <version name="0.23" author=": Joep Vanlier" time="2018-08-11T22:02:26Z">
+        <changelog><![CDATA[+ Added automatic alphabetical sorting of instruments and templates.]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/f16eb353e6646b51a6e39f6b4ac28034504afe99/MachineView/MachineView.lua</source>
       </version>
     </reapack>
   </category>
