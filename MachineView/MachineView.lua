@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.23
+@version 0.25
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -56,6 +56,10 @@
 
 --[[
  * Changelog:
+ * v0.25 (2018-08-13)
+   + Fixed multi-delete bug.
+ * v0.24 (2018-08-13)
+   + Added redo/save/load shortcuts.
  * v0.23 (2018-08-13)
    + Added automatic alphabetical sorting of instruments and templates.
  * v0.22 (2018-08-12)
@@ -116,6 +120,8 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
+scriptName = "Hackey Machines v0.25"
+
 machineView = {}
 machineView.tracks = {}
 machineView.config = {}
@@ -155,7 +161,10 @@ help = {
   {"F4", "Toggle showing hidden machines"},
   {"F5", "Toggle night mode"},
   {"F8", "Weird stuff"},
-  {"F10", "Open FX editing list (windows only)"}
+  {"F10", "Open FX editing list (windows only)"},
+  {"CTRL + S", "Save"},
+  {"CTRL + Z", "Undo"},
+  {"CTRL + SHIFT + Z", "Redo"},
 }
 
 defaultFile = "FXlist = {\n  Instruments = {\n    \"Kontakt\",\n    \"Play\",\n    \"VacuumPro\",\n    \"FM8\",\n    \"Massive\",\n    \"Reaktor 6\",\n    \"Oatmeal\",\n    \"Z3TA+2\",\n    \"Firebird\",\n    \"SQ8L\",\n    \"Absynth 5\",\n    \"Tyrell N6\",\n    \"Zebralette\",\n    \"Podolski\",\n    \"Hybrid\",\n    \"mda SubSynth\",\n    \"Crystal\",\n    \"Rapture\",\n    \"Claw\",\n    \"DX10\",\n    \"JX10\",\n    \"polyIblit\",\n    \"dmiHammer\"\n  },\n  Drums = {\n    \"Battery4\",\n    \"VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)\",\n    \"Kickbox\",\n  },\n  Effects = {\n    EQ = {\n      \"ReaEq\",\n     \"BootEQmkII\",\n      \"VST3: OneKnob Phatter Stereo\"\n    },\n    Filter = {\n      \"BiFilter\",\n      \"MComb\",\n      \"AtlantisFilter\",\n      \"ReaFir\",\n      \"Apple 12-Pole Filter\",\n      \"Apple 2-Pole Lowpass Filter\",\n      \"Chebyshev 4-Pole Filter\",\n      \"JS: Exciter\",\n    },\n   Modulation = {\n      \"Chorus (Improved Shaping)\",\n      \"Chorus (Stereo)\",\n      \"Chorus CH-1\",\n      \"Chorus CH-2\",\n      \"VST3: MFlanger\",\n      \"VST3: MVibrato\",\n      \"VST3: MPhaser\",\n      \"VST3: Tremolo\",\n    },\n    Dynamics = {\n      \"VST3: API-2500 Stereo\",\n      \"VST3: L1 limiter Stereo\",\n      \"VST3: TransX Wide Stereo\",\n      \"VST3: TransX Multi Stereo\",\n      \"ReaComp\",\n      \"ReaXComp\",\n      \"VST3:Percolate\",\n    },\n    Distortion = {\n      \"Amplitube 3\",\n      \"Renegade\",\n      \"VST3: MSaturator\", \n       \"VST3: MWaveShaper\",\n     \"VST3: MWaveFolder\",\n      \"Guitar Rig 5\",\n      \"Cyanide 2\",\n      \"Driver\",\n    },\n    Reverb = {\n      \"ReaVerb\",\n      \"VST3: IR-L fullStereo\",\n      \"VST3: H-Reverb Stereo/5.1\",\n      \"VST3: H-Reverb long Stereo/5.1\",\n      \"VST3: RVerb Stereo\",\n      \"epicVerb\",\n      \"Ambience\",\n      \"Hexaline\",\n      \"ModernFlashVerb\",\n    },\n    Delay = {\n      \"ReaDelay\",\n      \"VST3: H-Delay Stereo\",\n      \"VST3: STADelay\",\n      \"MjRotoDelay\",\n      \"ModernSpacer\",\n    },\n    Mastering = {\n      \"VST3: Drawmer S73\",\n      \"VST3: L1+ Ultramaximizer Stereo\",\n      \"VST3: Elephant\",\n    },\n    Strip = {\n      \"VST3: Scheps OmniChannel Stereo\",\n      \"VST3: SSLGChannel Stereo\",\n    },\n    Stereo = {\n      \"VST3: S1 Imager Stereo\",\n      \"VST3: MSpectralPan\",\n      \"VST3: MStereoExpander\",\n      \"VST3: Propane\",\n      \"Saike StereoManipulator\",\n    },\n    Gate = {\n      \"ReaGate\",\n    },\n    Pitch = {\n      \"ReaPitch\",\n      \"ReaTune\",\n    },\n    Vocoder = {\n      \"mda Talkbox\",\n    },\n    Analysis = {\n      \"SideSpectrum Meter\"\n    },\n  },\n}\n"
@@ -1831,12 +1840,16 @@ end
 
 function machineView:deleteMachines()
   reaper.Undo_BeginBlock()
-  local GUIDstoDelete = {}
+  local killList = {}
   for i,v in pairs(self.tracks) do
     if ( v.selected == 1 ) then
-      v:kill()
+      killList[#killList + 1] = v
     end
   end
+  for i,v in pairs( killList ) do
+    v:kill()
+  end
+  
   reaper.Undo_EndBlock("Hackey Machines: Delete multiple tracks", -1)
 end
 
@@ -1884,23 +1897,23 @@ function machineView:disconnectMe( GUID )
     ctrk =  reaper.GetTrack(0, i)
     if ( ctrk ) then
       if ( reaper.GetTrackGUID( ctrk ) == GUID ) then
+        -- Check if anyone has this guy as parent. Disconnect them too!
+        for i=1,reaper.GetNumTracks()-1 do
+          local trk = reaper.GetTrack(0,i)
+          if ( reaper.GetParentTrack(trk) == ctrk ) then
+            reaper.SetMediaTrackInfo_Value(trk, "B_MAINSEND", 0)
+          end
+        end
+        while reaper.GetTrackNumSends(ctrk, 0) > 0 do
+          reaper.RemoveTrackSend(ctrk, 0, 0)
+        end
+        while reaper.GetTrackNumSends(ctrk, -1) > 0 do
+          reaper.RemoveTrackSend(ctrk, -1, 0)
+        end
         break;
       end
     end
   end
-
-  -- Check if anyone has this guy as parent. Disconnect them too!
-  for i,v in pairs(self.tracks) do
-    if ( reaper.GetParentTrack(v.track) == ctrk ) then
-      reaper.SetMediaTrackInfo_Value(v.track, "B_MAINSEND", 0)
-    end
-  end
-  while reaper.GetTrackNumSends(ctrk, 0) > 0 do
-    reaper.RemoveTrackSend(ctrk, 0, 0)
-  end
-  while reaper.GetTrackNumSends(ctrk, -1) > 0 do
-    reaper.RemoveTrackSend(ctrk, -1, 0)
-  end    
 end
 
 function machineView:insertTemplate(val, x, y)
@@ -2018,7 +2031,17 @@ function machineView:undo()
   reaper.Undo_DoUndo2(0)
 end
 
---gfx_rectto(0.5*fftsize, 0.5*fftsize);
+function machineView:redo()
+  reaper.Undo_DoRedo2(0)
+end
+
+function machineView:save()
+  reaper.Main_SaveProject(0)
+end
+
+function machineView:saveAs()
+  reaper.Main_SaveProject(0)
+end
 
 SFX = 0
 
@@ -2297,6 +2320,10 @@ local function updateLoop()
     gfx.update()
     gfx.mouse_wheel = 0
     
+    
+    if ( ( lastChar == 19 and ( gfx.mouse_cap & 16 > 0 ))) then
+    print("LT")
+    end
     -- Maintain the loop until the window is closed or escape is pressed
     if ( lastChar ~= -1 ) then
       reaper.defer(updateLoop)
@@ -2306,6 +2333,10 @@ local function updateLoop()
         self:deleteMachines()
       elseif ( lastChar == 26 and ( gfx.mouse_cap & 4 > 0 ) ) then
         self:undo()
+      elseif ( lastChar == 26 and ( gfx.mouse_cap & 8 > 0 ) and ( gfx.mouse_cap & 4 > 0 ) ) then
+        self:redo()
+      elseif ( lastChar == 19 ) and ( gfx.mouse_cap & 4 > 0 )  then
+        self:save()
       elseif ( lastChar == 104 ) then
         self:hideMachines()
       elseif ( lastChar == 13 ) then
@@ -2661,7 +2692,7 @@ local function Main()
   
   self:initializeTracks()
   
-  gfx.init("Hackey Machines", self.config.width, self.config.height, 0, self.config.x, self.config.y)
+  gfx.init(scriptName, self.config.width, self.config.height, 0, self.config.x, self.config.y)
 
   reaper.defer(updateLoop)
 end
