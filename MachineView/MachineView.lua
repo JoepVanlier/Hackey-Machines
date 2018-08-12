@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.29
+@version 0.30
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -56,6 +56,8 @@
 
 --[[
  * Changelog:
+ * v0.30 (2018-08-13)
+   + Store window position and dock status in project file
  * v0.29 (2018-08-13)
    + Center zoom on mouse
  * v0.28 (2018-08-13)
@@ -128,7 +130,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.29"
+scriptName = "Hackey Machines v0.30"
 
 machineView = {}
 machineView.tracks = {}
@@ -139,6 +141,7 @@ machineView.config.width = 500
 machineView.config.height = 500
 machineView.config.x = 100
 machineView.config.y = 100
+machineView.config.d = 0
 
 machineView.config.muteOrigX = 4
 machineView.config.muteOrigY = 4
@@ -1549,42 +1552,6 @@ function block.create(track, x, y, config, viewer)
               else
                 -- This is a difficult case as the only way to send to master is to make the depth 0
                 -- However, this also means that we have to be careful about any other routing that might take place.
-
-                --[[
-                Old solution pre ReorderSelectedTracks
-                  local GUID = reaper.GetTrackGUID(self.track)
-                  reaper.InsertTrackAtIndex(0, false)
-                  
-                  local targetTrack
-                  for i=0,reaper.GetNumTracks()-1 do
-                    local curTrack = reaper.GetTrack(0, i)
-                    local ok, str = reaper.GetSetMediaTrackInfo_String(curTrack, "P_NAME", "", 0)
-                    if ( str == "To Master" ) then
-                      targetTrack = curTrack
-                      break;
-                    end
-                  end
-                  
-                  if ( not targetTrack ) then
-                  print("TARGET TRACK DID NOT YET EXIST ... CREATING")
-                    local GUID = reaper.GetTrackGUID(self.track)
-                  
-                    targetTrack = reaper.GetTrack(0,0)
-                    reaper.GetSetMediaTrackInfo_String(targetTrack, "P_NAME", "To Master", 1)
-                    reaper.SetMediaTrackInfo_Value(targetTrack, "B_MAINSEND", 1)
-                    
-                    -- Find my own index again now that it has shifted
-                    for i=0,reaper.GetNumTracks()-1 do
-                      local curTrack = reaper.GetTrack(0, i)
-                      if ( reaper.GetTrackGUID(curTrack) == GUID ) then
-                        self.track = curTrack
-                        break;
-                      end
-                    end
-                  end
-                  
-                  reaper.CreateTrackSend(self.track, targetTrack)
-                ]]--
                 
                 -- 1. The send to its parent needs to be made explicit if it is present
                 local sendsToParent = reaper.GetMediaTrackInfo_Value(self.track, "B_MAINSEND")
@@ -1713,7 +1680,6 @@ function block.create(track, x, y, config, viewer)
     end
     return false
   end
-  
   
   return self
 end
@@ -2086,6 +2052,53 @@ function machineView:saveAs()
   reaper.Main_SaveProject(0)
 end
 
+function machineView:checkWindowChange()
+  local d, x, y, w, h = gfx.dock(-1,1,1,1,1)
+  if ( self.config.x ~= x ) or ( self.config.y ~= y )  or ( self.config.width ~= w ) or ( self.config.height ~= h ) or ( self.config.d ~= d ) then
+    self.windowChange  = 1
+    self.config.x      = x
+    self.config.y      = y
+    self.config.d      = d
+    self.config.width  = w
+    self.config.height = h
+  elseif ( self.windowChange == 1 ) then
+    self.windowChange = 0
+    self:storePositions()
+  end
+end
+
+function machineView:handleZoom(mx, my)
+  local dzoom = zoom
+  zoom = zoom + ( gfx.mouse_wheel / 2000 )
+  if ( zoom > 2 ) then
+    zoom = 2
+  elseif ( zoom < 0.5 ) then
+    zoom = 0.5
+  end
+  dzoom = dzoom - zoom
+  origin[1] = origin[1] + mx * dzoom
+  origin[2] = origin[2] + my * dzoom
+  if ( math.abs(dzoom) > 0 ) then
+    self:storePositions()
+  end
+end
+
+function machineView:handleDrag()
+  if ( ( gfx.mouse_cap & 64 ) > 0 ) then
+    if ( self.ldragx ) then
+      local dx = gfx.mouse_x - self.ldragx
+      local dy = gfx.mouse_y - self.ldragy
+      origin[1] = origin[1] + dx
+      origin[2] = origin[2] + dy
+      self:storePositions()
+    end
+    self.ldragx = gfx.mouse_x
+    self.ldragy = gfx.mouse_y
+  else
+    self.ldragx = nil
+  end 
+end
+
 function machineView:highlightRecursively(track)
   for i,v in pairs( track.sinks ) do
     if ( not v.accent ) then
@@ -2123,6 +2136,9 @@ end
 SFX = 0
 local function updateLoop()
   local self = machineView    
+  
+  self:checkWindowChange()
+  
   reaper.PreventUIRefresh(1)
   -- Something serious happened. Maybe the user loaded a new file?
   if ( not pcall( function() self:loadTracks() end ) ) then
@@ -2356,29 +2372,8 @@ local function updateLoop()
       end
     end
   
-    local dzoom = zoom
-    zoom = zoom + ( gfx.mouse_wheel / 2000 )
-    if ( zoom > 2 ) then
-      zoom = 2
-    elseif ( zoom < 0.5 ) then
-      zoom = 0.5
-    end
-    dzoom = dzoom - zoom
-    origin[1] = origin[1] + mx * dzoom
-    origin[2] = origin[2] + my * dzoom
-  
-    if ( ( gfx.mouse_cap & 64 ) > 0 ) then
-      if ( self.ldragx ) then
-        local dx = gfx.mouse_x - self.ldragx
-        local dy = gfx.mouse_y - self.ldragy
-        origin[1] = origin[1] + dx
-        origin[2] = origin[2] + dy      
-      end
-      self.ldragx = gfx.mouse_x
-      self.ldragy = gfx.mouse_y
-    else
-      self.ldragx = nil
-    end 
+    self:handleZoom(mx, my)
+    self:handleDrag()
   
     if ( self.iter and self.iter > 0 ) then
       machineView:distribute()
@@ -2755,10 +2750,8 @@ local function Main()
   FXlist = sortTable(FXlist)
   FXlist[#FXlist+1] = sortTable(self:loadTemplates())
   FXlist[#FXlist].name__ = "Templates"
-  
-  local ok, v = reaper.GetProjExtState(0, "MVJV001", "night")
-  if ( ok ) then showN = tonumber( v ) end
-  night = showN or night
+
+  self:loadWindowPosition()
   if ( night == 1 ) then
     self:loadColors("dark")
   else    
@@ -2767,7 +2760,7 @@ local function Main()
   
   self:initializeTracks()
   
-  gfx.init(scriptName, self.config.width, self.config.height, 0, self.config.x, self.config.y)
+  gfx.init(scriptName, self.config.width, self.config.height, self.config.d, self.config.x, self.config.y)
 
   reaper.defer(updateLoop)
 end
@@ -2778,6 +2771,50 @@ function machineView:initializeTracks()
   v.name = "MASTER"
   self:loadTracks()
   self:loadPositions()
+end
+
+function machineView:loadWindowPosition()
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "night")
+  if ( ok ) then showN = tonumber( v ) end
+  night = showN or night
+  
+  local ox, oy, z, showS, showT, showH, gfxw, gfxh, x, y, d
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "ox")
+  if ( ok ) then ox = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "oy")
+  if ( ok ) then oy = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "zoom")  
+  if ( ok ) then z = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "showSignals")  
+  if ( ok ) then showS = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "showTrackName")  
+  if ( ok ) then showT = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "showHidden")  
+  if ( ok ) then showH = tonumber( v ) end      
+  
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "gfxw")  
+  if ( ok ) then gfxw = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "gfxh")  
+  if ( ok ) then gfxh = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "x")  
+  if ( ok ) then x = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "y")  
+  if ( ok ) then y = tonumber( v ) end
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "d")  
+  if ( ok ) then d = tonumber( v ) end
+  
+  origin[1]     = ox or origin[1]
+  origin[2]     = oy or origin[2]
+  zoom          = z or zoom
+  showSignals   = showS or showSignals
+  showTrackName = showT or showTrackName
+  showHidden    = showH or showHidden  
+  
+  self.config.x      = x    or self.config.x
+  self.config.y      = y    or self.config.y
+  self.config.d      = d    or self.config.d
+  self.config.width  = gfxw or self.config.width
+  self.config.height = gfxh or self.config.height
 end
 
 function machineView:storePositions()
@@ -2791,9 +2828,14 @@ function machineView:storePositions()
   reaper.SetProjExtState(0, "MVJV001", "oy", tostring(origin[2]))
   reaper.SetProjExtState(0, "MVJV001", "zoom", tostring(zoom))  
   
-  reaper.SetProjExtState(0, "MVJV001", "gfxw", tostring(gfx.w))
-  reaper.SetProjExtState(0, "MVJV001", "gfxh", tostring(gfx.h))
-
+  -- Store window state
+  local d, x, y, w, h = gfx.dock(-1,1,1,1,1)
+  reaper.SetProjExtState(0, "MVJV001", "gfxw", tostring(w))
+  reaper.SetProjExtState(0, "MVJV001", "gfxh", tostring(h))
+  reaper.SetProjExtState(0, "MVJV001", "x", tostring(x))
+  reaper.SetProjExtState(0, "MVJV001", "y", tostring(y))
+  reaper.SetProjExtState(0, "MVJV001", "d", tostring(d))  
+  
   reaper.SetProjExtState(0, "MVJV001", "showSignals", tostring(showSignals))
   reaper.SetProjExtState(0, "MVJV001", "showTrackName", tostring(showTrackName))
   reaper.SetProjExtState(0, "MVJV001", "showHidden", tostring(showHidden))  
@@ -2816,36 +2858,7 @@ function machineView:loadPositions()
     v.hidden = v.hidden or 0
     
     self.iterFree = 50
-  end
-  
-  local ox, oy, z
-  local ok, v = reaper.GetProjExtState(0, "MVJV001", "ox")
-  if ( ok ) then ox = tonumber( v ) end
-  local ok, v = reaper.GetProjExtState(0, "MVJV001", "oy")
-  if ( ok ) then oy = tonumber( v ) end
-  local ok, v = reaper.GetProjExtState(0, "MVJV001", "zoom")  
-  if ( ok ) then z = tonumber( v ) end
-  local ok, v = reaper.GetProjExtState(0, "MVJV001", "showSignals")  
-  if ( ok ) then showS = tonumber( v ) end
-  local ok, v = reaper.GetProjExtState(0, "MVJV001", "showTrackName")  
-  if ( ok ) then showT = tonumber( v ) end
-  local ok, v = reaper.GetProjExtState(0, "MVJV001", "showHidden")  
-  if ( ok ) then showH = tonumber( v ) end      
-  
-  local ok, v = reaper.GetProjExtState(0, "MVJV001", "gfxw")  
-  if ( ok ) then gfxw = tonumber( v ) end
-  local ok, v = reaper.GetProjExtState(0, "MVJV001", "gfxh")  
-  if ( ok ) then gfxh = tonumber( v ) end
-  
-  origin[1]     = ox or origin[1]
-  origin[2]     = oy or origin[2]
-  zoom          = z or zoom
-  showSignals   = showS or showSignals
-  showTrackName = showT or showTrackName
-  showHidden    = showH or showHidden  
-  
-  self.config.width = gfxw or self.config.width
-  self.config.height = gfxh or self.config.height
+  end  
 end
 
 Main()
