@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.26
+@version 0.27
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -56,6 +56,8 @@
 
 --[[
  * Changelog:
+ * v0.27 (2018-08-13)
+   + Fixed CTRL + click behaviour
  * v0.26 (2018-08-13)
    + Had an issue with machine deletion not properly propagation folderdepth (special thanks to Meta for helping me out with this one).
  * v0.25 (2018-08-13)
@@ -122,7 +124,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.26"
+scriptName = "Hackey Machines v0.27"
 
 machineView = {}
 machineView.tracks = {}
@@ -1429,6 +1431,7 @@ function block.create(track, x, y, config, viewer)
   self.evaluateSelection = function(self)
     if ( not shift ) then
       if ( ( (gfx.mouse_cap & 4) > 0 ) ) then
+        self.selected = 1 - self.selected
         reaper.SetMediaTrackInfo_Value(track, "I_SELECTED", self.selected)
       elseif ( self.selected == 0 ) then
         reaper.SetMediaTrackInfo_Value(reaper.GetMasterTrack(0), "I_SELECTED", 0)            
@@ -1489,7 +1492,6 @@ function block.create(track, x, y, config, viewer)
         
         -- Move the object
         -- This probably needs refactoring
-        self:evaluateSelection()
         self.viewer:moveObjects(x - lx, y - ly)
         self.arrow = nil
         return true
@@ -1506,7 +1508,10 @@ function block.create(track, x, y, config, viewer)
           self.lastTime = reaper.time_precise()
   
           -- Are we selecting something?
-          self:evaluateSelection()
+          if ( not self.selectChange ) then
+            self.selectChange = 1
+            self:evaluateSelection()
+          end
         end
         
         return true
@@ -1613,6 +1618,7 @@ function block.create(track, x, y, config, viewer)
    
     -- No capture, release the handle
     self.arrow = nil
+    self.selectChange = nil
     return false
   end
   
