@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="de426827ae62d976e6348fca5d6917276fb12555">
+<index version="1" name="Routing tools" commit="98e385528dd684675d765f8f4202ac9eae452182">
   <category name="MachineView">
     <reapack name="MachineView.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -125,6 +125,14 @@ it interfering with what is being updated in the repo.]]></changelog>
       <version name="0.30" author=": Joep Vanlier" time="2018-08-12T13:45:51Z">
         <changelog><![CDATA[+ Store window position and dock status in project file]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/de426827ae62d976e6348fca5d6917276fb12555/MachineView/MachineView.lua</source>
+      </version>
+      <version name="0.33" author=": Joep Vanlier" time="2018-08-12T16:48:28Z">
+        <changelog><![CDATA[+ Ctrl + doubleclick machine opens MPL Wiredchain (relies on it already being installed!)
++ Alt + doubleclick opens FX window instead of just first effect
++ Change rename color dark theme
++ Added little cursor thingy for renaming machines]]></changelog>
+        <source file="OpenMachineView.lua">https://github.com/JoepVanlier/Hackey-Machines/raw/98e385528dd684675d765f8f4202ac9eae452182/MachineView/OpenMachineView.lua</source>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/98e385528dd684675d765f8f4202ac9eae452182/MachineView/MachineView.lua</source>
       </version>
     </reapack>
   </category>
