@@ -2,6 +2,7 @@
 @description Script loader.
 @author: Joep Vanlier
 @license MIT
+@version 0.01
 @about 
   This script loads another script. It performs the following actions.
   
