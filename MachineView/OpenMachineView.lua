@@ -1,8 +1,6 @@
 --[[
 @description Hackey-Machines Loader
 @author: Joep Vanlier
-@provides
-  [main] .
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
