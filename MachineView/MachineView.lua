@@ -2,7 +2,7 @@
 @description Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.
 @author: Joep Vanlier
 @provides
-  openMachineView.lua
+  OpenMachineView.lua
   [main] .
 @links
   https://github.com/JoepVanlier/Hackey-Machines
