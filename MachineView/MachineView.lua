@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.27
+@version 0.28
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -56,6 +56,8 @@
 
 --[[
  * Changelog:
+ * v0.28 (2018-08-13)
+   + Add signal flow highlighting
  * v0.27 (2018-08-13)
    + Fixed CTRL + click behaviour
  * v0.26 (2018-08-13)
@@ -124,7 +126,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.27"
+scriptName = "Hackey Machines v0.28"
 
 machineView = {}
 machineView.tracks = {}
@@ -356,7 +358,7 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   gfx.line(xmi, yma, xma, yma)
   gfx.line(xmi, ymi, xmi, yma)
   gfx.line(xma, ymi, xma, yma)
-  gfx.set( 0, 0, 0, 0 )
+  gfx.set( 0, 0, 0, 0.3 )
   gfx.line(xmi+1, yma+1, xma+1, yma+1)
   gfx.line(xma+1, ymi+1, xma+1, yma+1)
   gfx.line(xmi+2, yma+2, xma+2, yma+2)
@@ -421,6 +423,44 @@ wgfx = {
   end,
   rect = function(x, y, w, h)
     gfx.rect( xtrafo(x), ytrafo(y), zoom*w, zoom*h )
+  end,  
+  thickline = function(x1, y1, x2, y2, w, stepsize, color)
+    local cx = xtrafo( x1 )
+    local cy = ytrafo( y1 )
+    local dx = xtrafo( x2 ) - cx
+    local dy = ytrafo( y2 ) - cy
+    local len = math.sqrt( dx*dx + dy*dy )
+    dx = dx / len
+    dy = dy / len
+    
+    -- Space to edges perpendicular to line
+    local cx2 = cx + w * dy
+    local cy2 = cy - w * dx
+    cx = cx - 2 * w * dy
+    cy = cy + 2 * w * dx
+    local xl = cx
+    local yl = cy
+    local xl2 = cx2
+    local yl2 = cy2
+    local rt = 3*reaper.time_precise()
+    gfx.set(table.unpack(color))
+    dx = dx * stepsize
+    dy = dy * stepsize
+    for j = 0,len,stepsize do
+      gfx.a = math.abs( math.sin(10*j + rt) )
+      cx = cx + dx
+      cy = cy + dy
+      cx2 = cx2 + dx
+      cy2 = cy2 + dy       
+      gfx.line( xl, yl, cx, cy )
+      gfx.line( xl2, yl2, cx2, cy2 )          
+      gfx.triangle(xl, yl, cx, cy, xl2, yl2)
+      gfx.triangle(cx, cy, cx2, cy2, xl2, yl2)
+      xl = cx
+      yl = cy
+      xl2 = cx2
+      yl2 = cy2
+    end
   end
 }
 
@@ -686,38 +726,6 @@ function box_ctrls.create(viewer, x, y, track, parent)
   local vH = self.vH
   self.ctrls = {}
     
-  -- Setter and getter lambdas
-  --[[local setVol, getVol, setPan, getPan
-  if ( loc.sendidx < 0 ) then
-    -- Main send
-    getVol = function()     return reaper.GetMediaTrackInfo_Value(loc.track, "D_VOL")/2 end
-    getPan = function()     return (reaper.GetMediaTrackInfo_Value(loc.track, "D_PAN")+1)*.5 end
-    setVol = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_VOL", val*2) end
-    setPan = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_PAN", val*2-1) end    
-  else
-    getVol = function()     return reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL")/2 end
-    getPan = function()     return (reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN")+1)*.5 end
-    setVol = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL", val*2) end
-    setPan = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN", val*2-1) end
-  end
-  
-  dispVol = function(val) return string.format("%.1f",20*math.log(val*2)/math.log(10)) end
-  dispPan = function(val) 
-    if ( val > 0.5 ) then
-      return string.format("%2dR",math.ceil(200*(val-0.5)))
-    else
-      return string.format("%2dL",math.floor(200*(0.5-val)))
-    end
-  end
-  
-  killCallback = function() self.kill(self) end
-  self.ctrls[1] = dial.create(self, .25*vW + self.offsetX, .25*vH + self.offsetY, .14*vW, .2*vW, getVol, setVol, dispVol)
-  self.ctrls[1].label = "V"
-  self.ctrls[2] = dial.create(self, .75*vW + self.offsetX, .25*vH + self.offsetY, .14*vW, .2*vW, getPan, setPan, dispPan)
-  self.ctrls[2].label = "P"
-  self.ctrls[2].drawFromCenter = 1  
-  ]]--  
-
   -- Button color updaters for MUTE and SOLO
   local muteUpdate = function(self)
     if ( reaper.GetMediaTrackInfo_Value( track, "B_MUTE" ) == 1 ) then
@@ -806,7 +814,7 @@ function box_ctrls.create(viewer, x, y, track, parent)
     for i,v in pairs(self.ctrls) do
       v:draw()
     end
-  end
+  end  
   
   self.checkHit = function( self, x, y )
     x = gfx.mouse_x
@@ -1099,7 +1107,7 @@ end
 function sink.create(viewer, track, idx, sinkData)
   local GUID
   local self          = {}
-  self.viewer         = viewer
+  self.viewer         = viewer  
   
   self.loc            = {track=track, sendidx=idx, source=sinkData.source, dest=sinkData.dest, isMaster=sinkData.isMaster}
   self.from           = sinkData.parentGUID
@@ -1139,11 +1147,16 @@ function sink.create(viewer, track, idx, sinkData)
     
     if ( this.hidden == 0 or (showHidden == 1) ) then
       local indicatorPoly = self.indicatorPoly
-      wgfx.line( this.x, this.y, other.x, other.y )
       wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[2][1], indicatorPoly[2][2] )
       wgfx.line( indicatorPoly[2][1], indicatorPoly[2][2], indicatorPoly[3][1], indicatorPoly[3][2] )
-      wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[3][1], indicatorPoly[3][2] )        
-    end
+      wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[3][1], indicatorPoly[3][2] )
+
+      if ( self.accent ) then
+        wgfx.thickline( this.x, this.y, other.x, other.y, .75, 5, colors.selectionColor )
+      else
+        wgfx.line( this.x, this.y, other.x, other.y )
+      end      
+    end    
   end
     
   self.drawCtrl = function(self)
@@ -2071,11 +2084,41 @@ function machineView:saveAs()
   reaper.Main_SaveProject(0)
 end
 
-SFX = 0
+function machineView:highlightRecursively(track)
+  for i,v in pairs( track.sinks ) do
+    if ( not v.accent ) then
+      v.accent = 1
+      self:highlightRecursively( self.tracks[v.GUID] )
+    end
+  end
+end
+
+function machineView:drawHighlightedSignal(mx, my)
+  local over
+  for i,v in pairs( self.tracks ) do
+    if v:checkHit( mx, my ) then
+      over = v
+      break;
+    end
+  end
+  if ( self.lastOver ~= over ) then
+    for i,v in pairs(self.tracks) do
+      for j,w in pairs(v.sinks) do
+        w.accent = nil
+      end
+    end
+    -- Trace the signal
+    if ( over ) then
+      self:highlightRecursively(over)
+    end  
+  end
+  self.lastOver = over
+end
 
 ------------------------------
 -- Main update loop
 -----------------------------
+SFX = 0
 local function updateLoop()
   local self = machineView    
   reaper.PreventUIRefresh(1)
@@ -2228,6 +2271,8 @@ local function updateLoop()
     local mx = ( gfx.mouse_x - origin[1]) / zoom
     local my = ( gfx.mouse_y - origin[2]) / zoom
     
+    self:drawHighlightedSignal(mx, my)
+        
     -- Prefer last object that was captured
     if ( self.lastCapture ) then
       captured = self.lastCapture:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
@@ -2348,10 +2393,6 @@ local function updateLoop()
     gfx.update()
     gfx.mouse_wheel = 0
     
-    
-    if ( ( lastChar == 19 and ( gfx.mouse_cap & 16 > 0 ))) then
-    print("LT")
-    end
     -- Maintain the loop until the window is closed or escape is pressed
     if ( lastChar ~= -1 ) then
       reaper.defer(updateLoop)
