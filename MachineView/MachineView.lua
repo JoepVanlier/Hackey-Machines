@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.25
+@version 0.26
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -56,6 +56,8 @@
 
 --[[
  * Changelog:
+ * v0.26 (2018-08-13)
+   + Had an issue with machine deletion not properly propagation folderdepth (special thanks to Meta for helping me out with this one).
  * v0.25 (2018-08-13)
    + Fixed multi-delete bug.
  * v0.24 (2018-08-13)
@@ -120,7 +122,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.25"
+scriptName = "Hackey Machines v0.26"
 
 machineView = {}
 machineView.tracks = {}
@@ -1619,8 +1621,16 @@ function block.create(track, x, y, config, viewer)
     -- Remove all connections first
     reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 0)
     self.viewer:disconnectMe(self.GUID)
-    self.viewer:killTrackByGUID(self.GUID)    
+    self.viewer:killTrackByGUID(self.GUID)
     reaper.Undo_EndBlock("Hackey Machines: Delete track", -1)
+  end
+  
+  self.killNow = function(self)
+    self.viewer:killTrackByGUID(self.GUID)
+  end
+  
+  self.disconnect = function(self)
+    self.viewer:disconnectMe(self.GUID)
   end
   
   self.duplicate = function(self)
@@ -1844,10 +1854,11 @@ function machineView:deleteMachines()
   for i,v in pairs(self.tracks) do
     if ( v.selected == 1 ) then
       killList[#killList + 1] = v
+  --    v:disconnect()
     end
   end
   for i,v in pairs( killList ) do
-    v:kill()
+    v:killNow()
   end
   
   reaper.Undo_EndBlock("Hackey Machines: Delete multiple tracks", -1)
@@ -1882,6 +1893,12 @@ function machineView:killTrackByGUID( GUID )
     local ctrk =  reaper.GetTrack(0, i)
     if ( ctrk ) then
       if ( reaper.GetTrackGUID( ctrk ) == GUID ) then
+        local depth = reaper.GetMediaTrackInfo_Value(ctrk, "I_FOLDERDEPTH" )
+        if ( i > 0 ) then
+          local trackup = reaper.GetTrack(0, i-1)
+          local oldDepth = reaper.GetMediaTrackInfo_Value(trackup, "I_FOLDERDEPTH")
+          reaper.SetMediaTrackInfo_Value(trackup, "I_FOLDERDEPTH", oldDepth + depth)
+        end
         reaper.DeleteTrack(ctrk)
         break;
       end
@@ -1894,21 +1911,26 @@ end
 function machineView:disconnectMe( GUID )
   local ctrk
   for i = 0,reaper.GetNumTracks()-1 do  
-    ctrk =  reaper.GetTrack(0, i)
+    ctrk = reaper.GetTrack(0, i)
     if ( ctrk ) then
+      -- We found us
       if ( reaper.GetTrackGUID( ctrk ) == GUID ) then
-        -- Check if anyone has this guy as parent. Disconnect them too!
-        for i=1,reaper.GetNumTracks()-1 do
-          local trk = reaper.GetTrack(0,i)
-          if ( reaper.GetParentTrack(trk) == ctrk ) then
-            reaper.SetMediaTrackInfo_Value(trk, "B_MAINSEND", 0)
-          end
-        end
         while reaper.GetTrackNumSends(ctrk, 0) > 0 do
           reaper.RemoveTrackSend(ctrk, 0, 0)
         end
         while reaper.GetTrackNumSends(ctrk, -1) > 0 do
           reaper.RemoveTrackSend(ctrk, -1, 0)
+        end
+
+        -- Check if anyone has this guy as parent. Disconnect them too!
+        for j=0,reaper.GetNumTracks()-1 do
+          local trk = reaper.GetTrack(0,j)
+          local ptrk = reaper.GetParentTrack(trk)
+          if ( ptrk ) then
+            if ( reaper.GetTrackGUID( ptrk ) == GUID ) then
+              reaper.SetMediaTrackInfo_Value(trk, "B_MAINSEND", 0)
+            end
+          end
         end
         break;
       end
