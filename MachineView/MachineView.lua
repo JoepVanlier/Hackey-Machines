@@ -2,11 +2,12 @@
 @description Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.
 @author: Joep Vanlier
 @provides
+  openMachineView.lua
   [main] .
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.30
+@version 0.33
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -56,6 +57,15 @@
 
 --[[
  * Changelog:
+ * v0.33 (2018-08-13)
+   + Ctrl + doubleclick machine opens MPL Wiredchain (relies on it already being installed!)
+   + Alt + doubleclick opens FX window instead of just first effect
+   + Change rename color dark theme
+   + Added little cursor thingy for renaming machines
+ * v0.32 (2018-08-13)
+   + Added ESC to close all floating windows (relies on SWS).
+ * v0.31 (2018-08-13)
+   + Added a loader for the script (OpenMachineView.lua) which makes sure that the existing one regains focus or a new one is created when executed.
  * v0.30 (2018-08-13)
    + Store window position and dock status in project file
  * v0.29 (2018-08-13)
@@ -130,7 +140,8 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.30"
+scriptName = "Hackey Machines v0.33"
+altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 
 machineView = {}
 machineView.tracks = {}
@@ -154,14 +165,16 @@ templates.extension = ".RTrackTemplate"
 
 help = {
   {"Shift drag machine", "Connect machines"}, 
-  {"Leftclick arrow", "Volume, panning, channel and disconnect controls"},
-  {"Ctrlclick machine", "Select multiple machines"},
-  {"Rightclick machine", "Solo, mute, rename, duplicate or remove machine"},
-  {"Rightclick background", "Insert machine"},
-  {"Middleclick arrow", "Disconnect signal cable"},
-  {"Middleclick drag", "Shift field of view"},
+  {"Left click arrow", "Volume, panning, channel and disconnect controls"},
+  {"Ctrl click machine", "Select multiple machines"},
+  {"Right click machine", "Solo, mute, rename, duplicate or remove machine"},
+  {"Right click background", "Insert machine"},
+  {"Middle click object", "Delete signal cable or machine"},
+  {"Middle click drag", "Shift field of view"},
   {"Scrollwheel", "Adjust zoom level"},
-  {"Double leftclick machine", "Open machine VST GUI"},
+  {"Double click machine", "Open machine VST GUI"},
+  {"Alt + Double click machine", "Open FX list"},  
+  {"Ctrl + Double click machine", "Open FX list with MPL Wiredchain (needs to be installed)"},    
   {"Leftclick drag", "Select multiple machines"},
   {"Enter", "Simulate forces between machines"},
   {"Del", "Delete machine"},
@@ -176,6 +189,7 @@ help = {
   {"CTRL + S", "Save"},
   {"CTRL + Z", "Undo"},
   {"CTRL + SHIFT + Z", "Redo"},
+  {"ESCAPE", "Close floating windows"}
 }
 
 defaultFile = "FXlist = {\n  Instruments = {\n    \"Kontakt\",\n    \"Play\",\n    \"VacuumPro\",\n    \"FM8\",\n    \"Massive\",\n    \"Reaktor 6\",\n    \"Oatmeal\",\n    \"Z3TA+2\",\n    \"Firebird\",\n    \"SQ8L\",\n    \"Absynth 5\",\n    \"Tyrell N6\",\n    \"Zebralette\",\n    \"Podolski\",\n    \"Hybrid\",\n    \"mda SubSynth\",\n    \"Crystal\",\n    \"Rapture\",\n    \"Claw\",\n    \"DX10\",\n    \"JX10\",\n    \"polyIblit\",\n    \"dmiHammer\"\n  },\n  Drums = {\n    \"Battery4\",\n    \"VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)\",\n    \"Kickbox\",\n  },\n  Effects = {\n    EQ = {\n      \"ReaEq\",\n     \"BootEQmkII\",\n      \"VST3: OneKnob Phatter Stereo\"\n    },\n    Filter = {\n      \"BiFilter\",\n      \"MComb\",\n      \"AtlantisFilter\",\n      \"ReaFir\",\n      \"Apple 12-Pole Filter\",\n      \"Apple 2-Pole Lowpass Filter\",\n      \"Chebyshev 4-Pole Filter\",\n      \"JS: Exciter\",\n    },\n   Modulation = {\n      \"Chorus (Improved Shaping)\",\n      \"Chorus (Stereo)\",\n      \"Chorus CH-1\",\n      \"Chorus CH-2\",\n      \"VST3: MFlanger\",\n      \"VST3: MVibrato\",\n      \"VST3: MPhaser\",\n      \"VST3: Tremolo\",\n    },\n    Dynamics = {\n      \"VST3: API-2500 Stereo\",\n      \"VST3: L1 limiter Stereo\",\n      \"VST3: TransX Wide Stereo\",\n      \"VST3: TransX Multi Stereo\",\n      \"ReaComp\",\n      \"ReaXComp\",\n      \"VST3:Percolate\",\n    },\n    Distortion = {\n      \"Amplitube 3\",\n      \"Renegade\",\n      \"VST3: MSaturator\", \n       \"VST3: MWaveShaper\",\n     \"VST3: MWaveFolder\",\n      \"Guitar Rig 5\",\n      \"Cyanide 2\",\n      \"Driver\",\n    },\n    Reverb = {\n      \"ReaVerb\",\n      \"VST3: IR-L fullStereo\",\n      \"VST3: H-Reverb Stereo/5.1\",\n      \"VST3: H-Reverb long Stereo/5.1\",\n      \"VST3: RVerb Stereo\",\n      \"epicVerb\",\n      \"Ambience\",\n      \"Hexaline\",\n      \"ModernFlashVerb\",\n    },\n    Delay = {\n      \"ReaDelay\",\n      \"VST3: H-Delay Stereo\",\n      \"VST3: STADelay\",\n      \"MjRotoDelay\",\n      \"ModernSpacer\",\n    },\n    Mastering = {\n      \"VST3: Drawmer S73\",\n      \"VST3: L1+ Ultramaximizer Stereo\",\n      \"VST3: Elephant\",\n    },\n    Strip = {\n      \"VST3: Scheps OmniChannel Stereo\",\n      \"VST3: SSLGChannel Stereo\",\n    },\n    Stereo = {\n      \"VST3: S1 Imager Stereo\",\n      \"VST3: MSpectralPan\",\n      \"VST3: MStereoExpander\",\n      \"VST3: Propane\",\n      \"Saike StereoManipulator\",\n    },\n    Gate = {\n      \"ReaGate\",\n    },\n    Pitch = {\n      \"ReaPitch\",\n      \"ReaTune\",\n    },\n    Vocoder = {\n      \"mda Talkbox\",\n    },\n    Analysis = {\n      \"SideSpectrum Meter\"\n    },\n  },\n}\n"
@@ -248,6 +262,19 @@ function tprint (tbl, indent, maxindent, verbose)
     end
   end
 end 
+
+-- Grab the focus
+function machineView:focusMe()
+  reaper.SetProjExtState(0, "MVJV001", "requestFocus", tonumber(0))
+  gfx.quit()
+  gfx.init(scriptName, self.config.width, self.config.height, self.config.d, self.config.x, self.config.y)
+end
+
+local function focusRequested()
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "requestFocus")
+  if ( ok ) then v = tonumber( v ) end
+  return v or 0
+end
 
 colors = {}
 function machineView:loadColors(colorScheme)
@@ -368,18 +395,24 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   gfx.line(xma+1, ymi+1, xma+1, yma+1)
   gfx.line(xmi+2, yma+2, xma+2, yma+2)
   gfx.line(xma+2, ymi+2, xma+2, yma+2)    
-  
-  if ( rnc ) then
-    gfx.set( table.unpack(rnc) )  
-  end
-  
+    
   if ( hidden == 1 ) then
     gfx.set( table.unpack(fgData) )  
   else
     gfx.set( table.unpack(fg) )
   end
+  
   gfx.setfont(1, "Lucida Grande", math.floor(20*zoom))
   local wc, hc = gfx.measurestr(name)
+  if ( rnc ) then
+    gfx.set( table.unpack(rnc) )
+    local tc = 3*reaper.time_precise()
+    if ( tc - 2*math.floor(tc/2) > 1 ) then
+      gfx.x = xtrafo(x)+0.5*wc
+      gfx.y = ytrafo(y)-0.5*hc
+      gfx.drawstr('_')
+    end
+  end
   gfx.x = xtrafo(x)-0.5*wc
   gfx.y = ytrafo(y)-0.5*hc
   gfx.drawstr( name, 1, 1 )
@@ -1239,7 +1272,6 @@ function block.create(track, x, y, config, viewer)
   end
   
   self:loadColors()
-  
   self.w = config.blockWidth
   self.h = config.blockHeight
   self.xo = config.muteOrigX
@@ -1482,6 +1514,8 @@ function block.create(track, x, y, config, viewer)
     if ( lmb > 0 ) then lmb = true else lmb = false end
     local rmb = gfx.mouse_cap & 2
     if ( rmb > 0 ) then rmb = true else rmb = false end    
+    local mmb = gfx.mouse_cap & 64
+    if ( mmb > 0 ) then mmb = true else mmb = false end
     local shift = gfx.mouse_cap & 8
     if ( shift > 0 ) then shift = true else shift = false end
   
@@ -1492,10 +1526,7 @@ function block.create(track, x, y, config, viewer)
           return true
         end
       end
-    end
-  
-    -- LMB
-    if ( lmb ) then
+    elseif ( lmb ) then
       -- Were we the last capture?
       if ( self == lastcapture ) then
         if ( shift ) then
@@ -1520,12 +1551,18 @@ function block.create(track, x, y, config, viewer)
           self:toggleMute()
         else
           if ( self.lastTime and (reaper.time_precise() - self.lastTime) < doubleClickInterval ) then
-            reaper.TrackFX_Show(self.track, 0, 3)
-            reaper.TrackFX_SetOpen(self.track, 0, false)
+            if ( gfx.mouse_cap & 4 > 0 ) then
+              self.viewer:callScript(altDouble)
+            elseif ( gfx.mouse_cap & 16 > 0 ) then
+              reaper.TrackFX_SetOpen(self.track, 1, true)
+            else
+              reaper.TrackFX_Show(self.track, 0, 3)
+              reaper.TrackFX_SetOpen(self.track, 0, true)    
+            end
           end
           self.lastTime = reaper.time_precise()
   
-          -- Are we selecting something?
+          -- Is this the initial click?
           if ( not self.selectChange ) then
             self.selectChange = 1
             self:evaluateSelection()
@@ -1535,6 +1572,11 @@ function block.create(track, x, y, config, viewer)
         return true
       end
     else
+      if ( mmb and self:checkHit( x, y ) ) then
+        self:kill()
+        return;
+      end
+    
       if ( self == lastcapture ) then
         -- Were we trying to connect something?
         if ( self.arrow ) then
@@ -2130,12 +2172,63 @@ function machineView:drawHighlightedSignal(mx, my)
   self.lastOver = over
 end
 
+local function findCommandID(name)
+  local commandID
+  local lines = {}
+  local fn = reaper.GetResourcePath() .. '//' .. "Reaper-kb.ini"
+  for line in io.lines(fn) do
+    lines[#lines + 1] = line
+  end
+  
+  for i,v in pairs(lines) do
+    if ( v:find(name, 1, true) ) then
+      local startidx = v:find("RS", 1, true)
+      local endidx = v:find(" ", startidx, true)
+      commandID = (v:sub(startidx,endidx-1))
+    end
+  end
+  
+  if ( commandID ) then
+    return "_" .. commandID
+  end
+end
+
+function machineView:callScript(scriptName)
+  local cmdID = findCommandID( scriptName )
+  
+  if ( cmdID ) then
+    local cmd = reaper.NamedCommandLookup( cmdID )
+    if ( cmd ) then
+      reaper.Main_OnCommand(cmd, 0)
+    else
+      reaper.ShowMessageBox("Failed to load script "..cmd, "Error", 0)
+    end
+  end
+end
+
+function machineView:quickCmdCalls(commands)
+  for i,v in pairs(commands) do
+    local cmd = reaper.NamedCommandLookup( v )
+      if ( cmd > 0 ) then
+        reaper.Main_OnCommand(cmd, 0)
+      end
+  end
+end
+
+function machineView:closeFloatingWindows()
+  self:quickCmdCalls( { "_S&M_WNCLS3", "_S&M_WNCLS4" } )
+end
+
 ------------------------------
 -- Main update loop
 -----------------------------
 SFX = 0
 local function updateLoop()
   local self = machineView    
+  
+  if ( focusRequested() == 1 ) then
+    self:focusMe()
+  end
   
   self:checkWindowChange()
   
@@ -2399,8 +2492,10 @@ local function updateLoop()
       reaper.defer(updateLoop)
       
       --print(lastChar)
-      if ( lastChar == 27 or lastChar == 6579564.0 ) then
+      if ( lastChar == 6579564.0 ) then
         self:deleteMachines()
+      elseif ( lastChar == 27 ) then
+        self:closeFloatingWindows()
       elseif ( lastChar == 26 and ( gfx.mouse_cap & 4 > 0 ) ) then
         self:undo()
       elseif ( lastChar == 26 and ( gfx.mouse_cap & 8 > 0 ) and ( gfx.mouse_cap & 4 > 0 ) ) then
@@ -2721,7 +2816,7 @@ end
 local function Main()
   local self = machineView
   local reaper = reaper
-  
+  local ok, v = reaper.SetProjExtState(0, "MVJV001", "requestFocus", tonumber(0))
   checkOS()
   if ( isMac ) then
     templates.slash = '/'
