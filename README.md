@@ -3,6 +3,15 @@ A LUA modular interface plugin for REAPER 5.9x and up. Designed to mimick the ma
 
 ![Screenshot](https://i.imgur.com/WP1kY6h.png)
 
+![Importing templates]https://i.imgur.com/WaQWCRC.gif[/img]
+Importing templates.
+
+![Manipulate channels]https://i.imgur.com/jKxfOnN.gif[/img]
+Manipulation of volume, panning, name, solo/mute status, to/from channel.
+
+![Deleting machines]https://i.imgur.com/bUEdAUR.gif[/img]
+Deleting machines
+
 ## Installation
 ### With Reapack
 Add it in your Reapack repository list: `https://raw.githubusercontent.com/joepvanlier/Hackey-Machines/master/index.xml`.
@@ -36,19 +45,28 @@ Connecting two machines can be done by holding shift, clicking the source machin
 
 If the wiring turns messy, hit ENTER to simulate the force-based rearranger for a few more steps. It combines spring forces between connected machines and repelling forces between all machines to try and optimally layout the machine graph.
 
-| Key                   		| Action                                                                |
-|:--------------------------------------|:----------------------------------------------------------------------|
-| F2 | Enables and disables visualization of signals |
-| F3 | Toggles between track and machine names |
-| F4 | Toggle showing all machines versus hiding some |
-| Shift + Drag to other machine | Connect machines |
-| Left mouse button on connection arrow | Open subwindow to manipulate volume, panning or disconnect machines |
-| Right mouse button on machine | Open window to solo, mute, rename, duplicate or remove the machine |
-| Middle mouse button | Disconnect machine |
-| Middle mouse button + Drag | Shift field of view |
-| Scrollwheel | Adjust zoom level |
-| Doubleclick machine | Opens machine GUI (if present) |
-| Enter | Simulate forces |
-
-
-
+  | Key                                   | Action                                                                |
+  |:--------------------------------------|:----------------------------------------------------------------------|
+  | F1                                    | Help                                                                  |
+  | F2                                    | Enables and disables visualization of signals                         |
+  | F3                                    | Toggles between track and machine names                               |
+  | F4                                    | Toggle showing all machines versus hiding some                        |
+  | F5                                    | Switch to night mode                                                  |
+  | F8 									  | ??? 																  |
+  | F10 								  | Open file with machine (VST/FX) list 								  |
+  | 									  | 																	  |
+  | Shift + Drag to other machine         | Connect machines                                                      |
+  | Left mouse button on connection arrow | Open subwindow to manipulate volume, panning or disconnect machines   |
+  | Right mouse button on machine         | Open window to solo, mute, rename, duplicate or remove the machine    |
+  | Middle mouse button                   | Disconnect machine                                                    |
+  | Middle mouse button + Drag            | Shift field of view                                                   |
+  | Scrollwheel                           | Adjust zoom level                                                     |
+  | Doubleclick machine                   | Opens machine GUI (if present)                                        |
+  | Enter                                 | Simulate forces                                                       |
+  | Delete 								  | Delete selected machine 											  |
+  | H 	 								  | Hide selected machine 												  |
+  | 									  | 																	  |
+  | CTRL + S 							  | Save Project 														  |
+  | CTRL + Z 							  | Undo 																  |
+  | CTRL + Shift + Z 					  | Redo 																  |
+ 
