@@ -1,6 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="dcd2080e430a0f3560bb82608721718b695e5f54">
+<index version="1" name="Routing tools" commit="a07af481c6890b7260c8b2ea1cd2dd303dde065e">
   <category name="MachineView">
+    <reapack name="MachineView.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs28 Hackey-Machines\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs24 What is it?\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A lightweight machine plugin for REAPER 5.x and up.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Usage\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Hackey Machines provides an alternative way for visualizing and manipulating the routing in REAPER. Press F1 for an in-plugin help file.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 If you use this plugin and enjoy it let me/others know. If you run into any bugs and figure out a way to reproduce them, please open an issue on the plugin's github page {\field{\*\fldinst{HYPERLINK "https://github.com/JoepVanlier/Hackey-Trackey/issues"}}{\fldrslt{\ul
+here
+}}}
+. I would greatly appreciate it!\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Happy routin' :)\par}
+}
+]]></description>
+        <link rel="website">https://github.com/JoepVanlier/Hackey-Machines</link>
+        <link rel="screenshot">https://i.imgur.com/WP1kY6h.png</link>
+      </metadata>
+      <version name="0.34" author=": Joep Vanlier" time="2018-08-12T17:08:50Z">
+        <changelog><![CDATA[+ Messing with how it is indexed in reapack ]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/a07af481c6890b7260c8b2ea1cd2dd303dde065e/MachineView/MachineView.lua</source>
+      </version>
+    </reapack>
     <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines Loader">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
