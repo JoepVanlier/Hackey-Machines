@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="a07af481c6890b7260c8b2ea1cd2dd303dde065e">
+<index version="1" name="Routing tools" commit="1e7de7631d4aeb02286c761d64b7be0b961d4a3a">
   <category name="MachineView">
     <reapack name="MachineView.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
