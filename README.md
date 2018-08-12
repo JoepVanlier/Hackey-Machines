@@ -1,6 +1,9 @@
 # Hackey-Machines
 A LUA modular interface plugin for REAPER 5.9x and up. Designed to mimick the machine editor in Jeskola Buzz.
 
+![Highlight signal chain](https://i.imgur.com/llYLrCr.gif)
+Highlight signal chain
+
 ![Importing templates](https://i.imgur.com/WaQWCRC.gif)
 Importing templates.
 
