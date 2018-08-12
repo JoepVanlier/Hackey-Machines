@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.34
+@version 0.35
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.35 (2018-08-15)
+   + Added visualization and toggle of record option
  * v0.34 (2018-08-14)
    + Messing with how it is indexed in reapack 
  * v0.33 (2018-08-13)
@@ -112,7 +114,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.34"
+scriptName = "Hackey Machines v0.35"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 
 machineView = {}
@@ -134,6 +136,8 @@ machineView.config.muteHeight = 7
 templates = {}
 templates.slash = '\\'
 templates.extension = ".RTrackTemplate"
+
+recCornerSize = .2
 
 help = {
   {"Shift drag machine", "Connect machines"}, 
@@ -158,6 +162,7 @@ help = {
   {"F5", "Toggle night mode"},
   {"F8", "Weird stuff"},
   {"F10", "Open FX editing list (windows only)"},
+  {"CTRL + R", "Set selection to record"},
   {"CTRL + S", "Save"},
   {"CTRL + Z", "Undo"},
   {"CTRL + SHIFT + Z", "Redo"},
@@ -278,7 +283,7 @@ function machineView:loadColors(colorScheme)
     colors.inactiveColor    = { .6, .6, .6, 1.0 } 
     colors.signalColor      = {37/256,111/256,222/256, 1.0}  
     colors.selectionColor   = {.2, .2, .5, 1}        
-    colors.renameColor      = colors.muteColor
+    colors.renameColor      = { 0.6, 0.3, 0.5, 1.0 }
     colors.playColor        = {0.3, 1.0, 0.4, 1.0}    
   end
   -- clear colour is in a different format
@@ -311,8 +316,7 @@ function file_exists(name)
    if f~=nil then io.close(f) return true else return false end
 end
 
-
-local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden, selected, playColor, selectionColor )
+local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden, selected, playColor, selectionColor, rec )
   local gfx = gfx
   
   local xmi = xtrafo( x - 0.5*w )
@@ -367,7 +371,16 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   gfx.line(xma+1, ymi+1, xma+1, yma+1)
   gfx.line(xmi+2, yma+2, xma+2, yma+2)
   gfx.line(xma+2, ymi+2, xma+2, yma+2)    
-    
+  
+  local c = recCornerSize
+  if ( rec ) then
+    gfx.set( table.unpack( rec ) )
+    gfx.triangle(xma-1, ymi+1, xma-1, ymi - c*(ymi-yma), xma + c*(ymi-yma), ymi+1)
+  else
+    gfx.set( table.unpack( fg ) )
+    gfx.triangle(xma-1, ymi+1, xma-1, ymi - c*(ymi-yma), xma + c*(ymi-yma), ymi+1)
+  end
+  
   if ( hidden == 1 ) then
     gfx.set( table.unpack(fgData) )  
   else
@@ -387,7 +400,7 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   end
   gfx.x = xtrafo(x)-0.5*wc
   gfx.y = ytrafo(y)-0.5*hc
-  gfx.drawstr( name, 1, 1 )
+  gfx.drawstr( name, 1, 1 )  
   
   w2 = w2*zoom
   h2 = h2*zoom
@@ -407,7 +420,7 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   if ( hidden == 1 ) then
     gfx.set( bg[1]*.8, bg[2]*.8, bg[3]*.8, 0.6 )
     gfx.rect(xmi, ymi, w, h+1 )
-  end
+  end  
   
   if ( selected > 0 ) then
     gfx.set( table.unpack( fgData ) )
@@ -1231,6 +1244,7 @@ function block.create(track, x, y, config, viewer)
   self.x = x
   self.y = y
   self.hidden = 0
+  self.record = 0
   
   self.loadColors = function(self)
     local FG = colors.textcolor
@@ -1387,22 +1401,32 @@ function block.create(track, x, y, config, viewer)
         rnc = colors.renameColor
       end
       if ( self.selected == 1 ) then
-        self.selectedOpacity = self.selectedOpacity + .1
-        if ( self.selectedOpacity > .3 ) then
-          self.selectedOpacity = .3
+        self.selectedOpacity = self.selectedOpacity + .07
+        if ( self.selectedOpacity > .2 ) then
+          self.selectedOpacity = .2
         end
       else
-        self.selectedOpacity = self.selectedOpacity - .1
+        self.selectedOpacity = self.selectedOpacity - .07
         if ( self.selectedOpacity < 0 ) then
           self.selectedOpacity = 0
         end
       end
       
+      -- Update recording status
+      self.record = reaper.GetMediaTrackInfo_Value( self.track, "I_RECARM" )
+      local rec
+      if ( self.record == 1 ) then
+        rec = colors.renameColor
+      end
+      if ( self.isMaster == 1 ) then
+        rec = self.bg
+      end
+      
       -- Draw routine
       if ( muted == 1 or blockedBySolo ) then
-        box( self.x, self.y, self.w, self.h, str, self.line, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor )
+        box( self.x, self.y, self.w, self.h, str, self.line, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec )
       else
-        box( self.x, self.y, self.w, self.h, self.name, self.line, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor )
+        box( self.x, self.y, self.w, self.h, self.name, self.line, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec )
       end
     end
   end
@@ -1521,6 +1545,8 @@ function block.create(track, x, y, config, viewer)
       if ( self:checkHit( x, y ) ) then
         if ( self:checkMute( x, y ) ) then
           self:toggleMute()
+        elseif ( self:checkRec( x, y ) ) then
+          self:toggleRec()
         else
           if ( self.lastTime and (reaper.time_precise() - self.lastTime) < doubleClickInterval ) then
             if ( gfx.mouse_cap & 4 > 0 ) then
@@ -1695,6 +1721,32 @@ function block.create(track, x, y, config, viewer)
     return false
   end
   
+  function self.toggleRec(self, x, y)
+    local recStatus = reaper.GetMediaTrackInfo_Value(self.track, "I_RECARM")
+    reaper.SetMediaTrackInfo_Value(self.track, "I_RECARM", 1-recStatus)
+  end
+  
+  function self.checkRec(self, x, y)
+    if ( not x or not y ) then
+      return false
+    end
+    
+    local c = recCornerSize
+    local xmi = self.x + (0.5-c)*self.w
+    local xma = self.x + 0.5*self.w
+    local ymi = self.y - 0.5*self.h
+    local yma = self.y + (0.5-c-0.5)*self.h
+    
+    if ( x > xmi and x < xma ) then
+      if ( y > ymi and y < yma ) then
+        if ( (xma-x) < (yma-y) ) then
+          return true
+        end
+      end
+    end
+    return false
+  end
+  
   return self
 end
 
@@ -1863,6 +1915,18 @@ function machineView:deleteMachines()
   end
   
   reaper.Undo_EndBlock("Hackey Machines: Delete multiple tracks", -1)
+end
+
+function machineView:setRecordGroup()
+  reaper.Undo_BeginBlock()
+  for i,v in pairs(self.tracks) do
+    if ( v.selected == 1 ) then
+      reaper.SetMediaTrackInfo_Value(v.track, "I_RECARM", 1)
+    else
+      reaper.SetMediaTrackInfo_Value(v.track, "I_RECARM", 0)    
+    end
+  end
+  reaper.Undo_EndBlock("Hackey Machines: Set record group", -1)
 end
 
 function machineView:updateMouseState(mx, my)
@@ -2480,6 +2544,8 @@ local function updateLoop()
         self.iter = 10
       elseif ( lastChar == 26161 ) then
         self.help = 1
+      elseif ( lastChar == 18 and ( gfx.mouse_cap & 4 > 0 ) ) then
+        self:setRecordGroup()
       elseif ( lastChar == 26162 ) then
         showSignals = 1 - showSignals
         self:storePositions()
