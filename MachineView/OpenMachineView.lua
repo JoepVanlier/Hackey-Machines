@@ -1,5 +1,4 @@
 --[[
-@noindex
 @description Script loader.
 @author: Joep Vanlier
 @license MIT
