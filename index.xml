@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="79dcee915112ac853af826e54b6e3df8061ff0c0">
+<index version="1" name="Routing tools" commit="8ee8450fc6057b4851cb6eadd7ead5821dcd64fa">
   <category name="MachineView">
     <reapack name="MachineView_exec.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -25,6 +25,14 @@ here
       <version name="0.34" author=": Joep Vanlier" time="2018-08-12T17:22:53Z">
         <changelog><![CDATA[+ Messing with how it is indexed in reapack ]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/8dff862646e5ec0dad45c9592632afa1df6b6122/MachineView/MachineView_exec.lua</source>
+      </version>
+      <version name="0.35" author=": Joep Vanlier" time="2018-08-12T20:48:15Z">
+        <changelog><![CDATA[+ Added visualization and toggle of record option]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/299d882cabc1198bcca3737c430d45808e599deb/MachineView/MachineView_exec.lua</source>
+      </version>
+      <version name="0.36" author=": Joep Vanlier" time="2018-08-12T23:04:49Z">
+        <changelog><![CDATA[+ Parse user categories. Added under shift + click.]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/8ee8450fc6057b4851cb6eadd7ead5821dcd64fa/MachineView/MachineView_exec.lua</source>
       </version>
     </reapack>
     <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines Loader">
