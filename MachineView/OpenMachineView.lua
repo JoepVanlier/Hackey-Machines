@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.35
+@version 0.36
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -26,6 +26,15 @@ scriptName = 'MachineView_exec.lua'
 extStateIdx = "MVJV001"
 focusTag = "requestFocus"
 
+local function print(...)
+  if ( not ... ) then
+    reaper.ShowConsoleMsg("nil value\n")
+    return
+  end
+  reaper.ShowConsoleMsg(...)
+  reaper.ShowConsoleMsg("\n")
+end
+
 local function get_script_path()
   local info = debug.getinfo(1,'S');
   local script_path = info.source:match[[^@?(.*[\/])[^\/]-$]]
@@ -35,33 +44,23 @@ local function get_script_path()
 end
 
 local function findCommandID(fn, name)
-  local commandID
+  local commandID = nil
   local lines = {}
   for line in io.lines(fn) do
     lines[#lines + 1] = line
   end
-    
+  
   local name = get_script_path() .. scriptName
   for i,v in pairs(lines) do
     if ( v:find(name, 1, true) ) then
       local startidx = v:find("RS", 1, true)
       local endidx = v:find(" ", startidx, true)
       commandID = (v:sub(startidx,endidx-1))
+      commandID = "_" .. commandID
     end
   end
   
-  if ( commandID ) then
-    return "_" .. commandID
-  end
-end
-
-local function print(...)
-  if ( not ... ) then
-    reaper.ShowConsoleMsg("nil value\n")
-    return
-  end
-  reaper.ShowConsoleMsg(...)
-  reaper.ShowConsoleMsg("\n")
+  return commandID
 end
 
 local function focusRequested()
@@ -91,7 +90,7 @@ local function preMain()
   local f = io.open(fn, "r")
   if f then
     commandID = findCommandID(fn, scriptName)
-  
+    
     f:close()
     if ( commandID ) then
       reaper.defer(Main)    
