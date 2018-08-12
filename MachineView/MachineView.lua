@@ -6,7 +6,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.28
+@version 0.29
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -56,6 +56,8 @@
 
 --[[
  * Changelog:
+ * v0.29 (2018-08-13)
+   + Center zoom on mouse
  * v0.28 (2018-08-13)
    + Add signal flow highlighting
  * v0.27 (2018-08-13)
@@ -126,7 +128,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.28"
+scriptName = "Hackey Machines v0.29"
 
 machineView = {}
 machineView.tracks = {}
@@ -2354,12 +2356,16 @@ local function updateLoop()
       end
     end
   
+    local dzoom = zoom
     zoom = zoom + ( gfx.mouse_wheel / 2000 )
     if ( zoom > 2 ) then
       zoom = 2
     elseif ( zoom < 0.5 ) then
       zoom = 0.5
     end
+    dzoom = dzoom - zoom
+    origin[1] = origin[1] + mx * dzoom
+    origin[2] = origin[2] + my * dzoom
   
     if ( ( gfx.mouse_cap & 64 ) > 0 ) then
       if ( self.ldragx ) then
