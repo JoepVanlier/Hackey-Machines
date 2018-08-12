@@ -1,15 +1,13 @@
 # Hackey-Machines
 A LUA modular interface plugin for REAPER 5.9x and up. Designed to mimick the machine editor in Jeskola Buzz.
 
-![Screenshot](https://i.imgur.com/WP1kY6h.png)
-
-![Importing templates]https://i.imgur.com/WaQWCRC.gif[/img]
+![Importing templates](https://i.imgur.com/WaQWCRC.gif)
 Importing templates.
 
-![Manipulate channels]https://i.imgur.com/jKxfOnN.gif[/img]
+![Manipulate channels](https://i.imgur.com/jKxfOnN.gif)
 Manipulation of volume, panning, name, solo/mute status, to/from channel.
 
-![Deleting machines]https://i.imgur.com/bUEdAUR.gif[/img]
+![Deleting machines](https://i.imgur.com/bUEdAUR.gif)
 Deleting machines
 
 ## Installation
