@@ -30,7 +30,7 @@
 --[[
  * Changelog:
  * v0.34 (2018-08-14)
-   + Messing with how it is indexed in reapack
+   + Messing with how it is indexed in reapack 
  * v0.33 (2018-08-13)
    + Ctrl + doubleclick machine opens MPL Wiredchain (relies on it already being installed!)
    + Alt + doubleclick opens FX window instead of just first effect
