@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.35
+@version 0.34
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,8 +27,6 @@
 
 --[[
  * Changelog:
- * v0.35 (2018-08-14)
-   + Still battling ReaPack.
  * v0.34 (2018-08-14)
    + Messing with how it is indexed in reapack 
  * v0.33 (2018-08-13)

@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.34
+@version 0.35
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -22,7 +22,7 @@
 ]]--
 
 wait = 0
-scriptName = 'MachineView.lua'
+scriptName = 'MachineView_exec.lua'
 extStateIdx = "MVJV001"
 focusTag = "requestFocus"
 
