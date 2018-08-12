@@ -1,22 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="74162dbbdb5312015c6d0b7719632073a96e7e6c">
+<index version="1" name="Routing tools" commit="dcd2080e430a0f3560bb82608721718b695e5f54">
   <category name="MachineView">
-    <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
+    <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines Loader">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs28 Hackey-Machines\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs24 What is it?\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 A lightweight machine plugin for REAPER 5.x and up.\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 Usage\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 Hackey Machines provides an alternative way for visualizing and manipulating the routing in REAPER. Press F1 for an in-plugin help file.\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 If you use this plugin and enjoy it let me/others know. If you run into any bugs and figure out a way to reproduce them, please open an issue on the plugin's github page {\field{\*\fldinst{HYPERLINK "https://github.com/JoepVanlier/Hackey-Trackey/issues"}}{\fldrslt{\ul
-here
-}}}
-. I would greatly appreciate it!\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 Happy routin' :)\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 This script can be used as loader for HackeyMachines. It only loads one instance and when called again, refocuses that instance rather that opening a new one.\par}
 }
 ]]></description>
         <link rel="website">https://github.com/JoepVanlier/Hackey-Machines</link>
@@ -29,6 +20,9 @@ here
 + Added little cursor thingy for renaming machines]]></changelog>
         <source file="MachineView.lua">https://github.com/JoepVanlier/Hackey-Machines/raw/74162dbbdb5312015c6d0b7719632073a96e7e6c/MachineView/MachineView.lua</source>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/74162dbbdb5312015c6d0b7719632073a96e7e6c/MachineView/OpenMachineView.lua</source>
+      </version>
+      <version name="0.01" author=": Joep Vanlier" time="2018-08-12T17:06:32Z">
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/dcd2080e430a0f3560bb82608721718b695e5f54/MachineView/OpenMachineView.lua</source>
       </version>
     </reapack>
   </category>
