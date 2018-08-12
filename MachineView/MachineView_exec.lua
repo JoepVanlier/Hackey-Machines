@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.35
+@version 0.36
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,9 +27,11 @@
 
 --[[
  * Changelog:
- * v0.35 (2018-08-15)
+ * v0.36 (2018-08-13)
+   + Parse user categories. Added under shift + click.
+ * v0.35 (2018-08-13)
    + Added visualization and toggle of record option
- * v0.34 (2018-08-14)
+ * v0.34 (2018-08-13)
    + Messing with how it is indexed in reapack 
  * v0.33 (2018-08-13)
    + Ctrl + doubleclick machine opens MPL Wiredchain (relies on it already being installed!)
@@ -114,7 +116,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.35"
+scriptName = "Hackey Machines v0.36"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 
 machineView = {}
@@ -144,7 +146,8 @@ help = {
   {"Left click arrow", "Volume, panning, channel and disconnect controls"},
   {"Ctrl click machine", "Select multiple machines"},
   {"Right click machine", "Solo, mute, rename, duplicate or remove machine"},
-  {"Right click background", "Insert machine"},
+  {"Right click background", "Insert machine from user menu (F10 to customize)"},
+  {"Shift + right click background", "Insert machine from reaper wide categories"},  
   {"Middle click object", "Delete signal cable or machine"},
   {"Middle click drag", "Shift field of view"},
   {"Scrollwheel", "Adjust zoom level"},
@@ -1764,6 +1767,7 @@ function fxlist.create(tab, x, y, name)
     local txts = {}
     local types = {}
     local maxw, w, h
+    h = 1
     maxw = 0
     for i,v in pairs( tab ) do
       if type(v) == "table" then
@@ -1775,6 +1779,7 @@ function fxlist.create(tab, x, y, name)
         txts[c] = v
         types[c] = 0
       else
+        w = 0
         c = c - 1
       end
       if ( w > maxw ) then
@@ -2385,7 +2390,11 @@ local function updateLoop()
       end
       
       if ( not self.FX_list ) then
-        self.FX_list = fxlist.create(FXlist, gfx.mouse_x, gfx.mouse_y)
+        if ( self.insertingMachine == 1 ) then
+          self.FX_list = fxlist.create(builtinFXlist, gfx.mouse_x, gfx.mouse_y)
+        else
+          self.FX_list = fxlist.create(FXlist, gfx.mouse_x, gfx.mouse_y)
+        end
       else
         local ret, val, ix, iy = self.FX_list:draw()
         if ( ret < 0 ) then
@@ -2496,7 +2505,11 @@ local function updateLoop()
         if ( ( gfx.mouse_cap & 1 ) > 0 ) then
           self.dragSelect = { gfx.mouse_x, gfx.mouse_y, 0, 0 }
         elseif ( ( gfx.mouse_cap & 2 ) > 0 ) then
-          self.insertingMachine = 1
+          if ( gfx.mouse_cap & 8 > 0 ) then
+            self.insertingMachine = 1
+          else
+            self.insertingMachine = 2        
+          end
         end
       end
     end
@@ -2810,11 +2823,109 @@ function machineView:dirToTable(dir, slash)
   return structure
 end
 
+
+
+local function thirdArg(v)
+  local idx = v:find("=", 1, true)
+  
+  if ( idx ) then
+    local pluginFile = v:sub(1,idx-1)
+    --local idx2 = v:reverse():find(",", 1, true)
+    local idx2 = v:find(",", idx+1, true)
+    if ( idx2 ) then
+      local idx3 = v:find(",", idx2+1, true)
+      if ( idx3 ) then
+        local pluginName = v:sub(idx3+1,-1)
+
+        local idx4 = pluginName:find("!!!", 1, true)
+        if ( idx4 ) then
+          pluginName = pluginName:sub(1,idx4-1)
+        end
+
+        return pluginFile, pluginName
+      end
+    end
+  end
+end
+
 function machineView:loadTemplates()
   local tpath = reaper.GetResourcePath() .. templates.slash .. 'TrackTemplates'
   
   local templateTable = self:dirToTable(tpath, templates.slash)
   return templateTable
+end
+
+function machineView:appendPluginList(fn, list)
+  
+  local f = io.open(fn, "r")
+  if f then
+    f:close()
+    
+    local lines = {}
+    for line in io.lines(fn) do
+      lines[#lines + 1] = line
+    end
+    
+    if ( lines ) then
+      for i,v in pairs(lines) do
+        if ( v:sub(1,1) ~= "[" ) then
+          local pluginFile, pluginName = thirdArg(v)
+          if ( pluginFile ) then
+            list[pluginFile] = pluginName
+          end
+        end
+      end
+    end
+  else
+    reaper.ShowMessageBox( "Could not find plugin ini file:" .. fn, "Error", 0 )
+  end
+  
+  return list, names
+end
+
+function machineView:loadBuiltins()
+  local list = {}
+  local pluginFiles = { 'reaper-vstplugins64.ini', 'reaper-vstplugins.ini' }
+  for i,v in pairs( pluginFiles ) do
+    local tpath = reaper.GetResourcePath() .. templates.slash .. v
+    list = self:appendPluginList(tpath, list)
+  end
+  
+  local fn = reaper.GetResourcePath() .. templates.slash .. 'reaper-fxtags.ini';
+  local f = io.open(fn, "r")
+  if f then
+    f:close()
+    
+    local lines = {}
+    for line in io.lines(fn) do
+      lines[#lines + 1] = line
+    end
+    
+    local fxTable = {}
+    local currentFolder
+    for i,v in pairs(lines) do
+      if ( v:sub(1,1) == "[" ) then
+        currentFolder = v:sub(2,-2)
+        fxTable[currentFolder] = {}
+      else
+        local idx = v:find("=", 1, true)
+        if ( idx ) then
+          local subFolder = v:sub(idx+1,-1)
+          local file = v:sub(1,idx-1)
+
+          if ( list[file] ) then
+            --print("Found and assigned to "..currentFolder .. "/" .. subFolder)
+            if ( not fxTable[currentFolder][subFolder] ) then
+              fxTable[currentFolder][subFolder] = {}
+            end
+            local cTable = fxTable[currentFolder][subFolder]
+            cTable[#cTable+1] = list[file]
+          end
+        end
+      end
+    end
+    return fxTable
+  end  
 end
 
 local function checkOS()
@@ -2883,6 +2994,11 @@ local function Main()
   FXlist = sortTable(FXlist)
   FXlist[#FXlist+1] = sortTable(self:loadTemplates())
   FXlist[#FXlist].name__ = "Templates"
+  
+  builtinFXlist = self:loadBuiltins()
+  builtinFXlist = sortTable(builtinFXlist)
+  builtinFXlist[#builtinFXlist+1] = FXlist[#FXlist]
+  builtinFXlist[#builtinFXlist].name__ = "Templates"
 
   self:loadWindowPosition()
   if ( night == 1 ) then
