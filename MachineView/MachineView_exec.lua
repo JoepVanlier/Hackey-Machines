@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.36
+@version 0.37
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.37 (2018-08-13)
+   + Also parse user folders now. Moved location in the code where the builtin folder is cached, to isolate bugs in case they occur and not make the whole script unusable.
  * v0.36 (2018-08-13)
    + Parse user categories. Added under shift + click.
  * v0.35 (2018-08-13)
@@ -116,7 +118,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.36"
+scriptName = "Hackey Machines v0.37"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 
 machineView = {}
@@ -242,6 +244,33 @@ function tprint (tbl, indent, maxindent, verbose)
     end
   end
 end 
+
+local function sortTable(data)
+  -- Find the keys of interest
+  local tableKeys = {}
+  local entryKeys = {}
+  for i,v in pairs(data) do
+    if type(v) == "table" then
+      tableKeys[#tableKeys+1] = i
+    else
+      entryKeys[#entryKeys+1] = v
+    end
+  end
+  table.sort( tableKeys )
+  table.sort( entryKeys )
+  
+  -- Construct the integer keyed table recursively
+  local newTable = {}
+  for i,v in pairs( tableKeys ) do
+    newTable[i] = sortTable( data[v] )
+    newTable[i].name__ = v
+  end
+  for i,v in pairs( entryKeys ) do
+    newTable[i+#tableKeys] = v
+  end
+  
+  return newTable
+end
 
 -- Grab the focus
 function machineView:focusMe()
@@ -2506,9 +2535,15 @@ local function updateLoop()
           self.dragSelect = { gfx.mouse_x, gfx.mouse_y, 0, 0 }
         elseif ( ( gfx.mouse_cap & 2 ) > 0 ) then
           if ( gfx.mouse_cap & 8 > 0 ) then
+            if ( not builtinFXlist ) then
+              builtinFXlist = self:loadBuiltins()
+              builtinFXlist = sortTable(builtinFXlist)
+              builtinFXlist[#builtinFXlist+1] = FXlist[#FXlist]
+              builtinFXlist[#builtinFXlist].name__ = "Templates"
+            end          
             self.insertingMachine = 1
-          else
-            self.insertingMachine = 2        
+          else          
+            self.insertingMachine = 2                 
           end
         end
       end
@@ -2883,15 +2918,8 @@ function machineView:appendPluginList(fn, list)
   return list, names
 end
 
-function machineView:loadBuiltins()
-  local list = {}
-  local pluginFiles = { 'reaper-vstplugins64.ini', 'reaper-vstplugins.ini' }
-  for i,v in pairs( pluginFiles ) do
-    local tpath = reaper.GetResourcePath() .. templates.slash .. v
-    list = self:appendPluginList(tpath, list)
-  end
-  
-  local fn = reaper.GetResourcePath() .. templates.slash .. 'reaper-fxtags.ini';
+function machineView:parseFX_ini(fxTable, list, name)
+  local fn = reaper.GetResourcePath() .. templates.slash .. name;
   local f = io.open(fn, "r")
   if f then
     f:close()
@@ -2901,14 +2929,24 @@ function machineView:loadBuiltins()
       lines[#lines + 1] = line
     end
     
-    local fxTable = {}
     local currentFolder
     for i,v in pairs(lines) do
       if ( v:sub(1,1) == "[" ) then
         currentFolder = v:sub(2,-2)
-        fxTable[currentFolder] = {}
+        if ( not fxTable[currentFolder] ) then
+          fxTable[currentFolder] = {}
+        end
       else
         local idx = v:find("=", 1, true)
+        if ( idx ) then
+          local key = v:sub(1,idx-1)
+          local value = v:sub(idx+1,-1)
+          fxTable[currentFolder][key] = value
+        end
+        
+        
+        --subFolder = v:sub(idx+1,-1)
+        --[[local idx = v:find("=", 1, true)
         if ( idx ) then
           local subFolder = v:sub(idx+1,-1)
           local file = v:sub(1,idx-1)
@@ -2919,13 +2957,90 @@ function machineView:loadBuiltins()
               fxTable[currentFolder][subFolder] = {}
             end
             local cTable = fxTable[currentFolder][subFolder]
-            cTable[#cTable+1] = list[file]
+            cTable[#cTable+1] = file
+          end
+        end
+        ]]--
+      end
+    end
+
+    return fxTable
+  end
+end
+
+function machineView:parseMachineIni(fxTable, list)
+  local trafo = {}
+  for top,v in pairs(fxTable) do
+    local subTable = {}
+    local c = 0
+    for fname,cat in pairs(v) do
+      if ( list[fname] ) then
+        if ( not subTable[cat] ) then
+          subTable[cat] = {}
+        end
+        subTable[cat][#subTable[cat]+1] = list[fname]
+        c = c + 1
+      end
+    end
+    if ( c > 0 ) then
+      trafo[top] = subTable
+    end
+  end
+  
+  return trafo
+end
+
+function machineView:parseName(name)
+  idx = name:reverse():find('/', 1, true) or name:reverse():find('\\', 1, true)
+  if ( idx ) then
+    name = name:sub(1-idx,-1);
+    name = name:gsub('+', '_')
+    name = name:gsub(' ', '_')
+    name = name:gsub('-', '_')    
+  end
+  return name
+end
+
+function machineView:loadBuiltins()
+  local list = {}
+  local pluginFiles = { 'reaper-vstplugins64.ini', 'reaper-vstplugins.ini' }
+  for i,v in pairs( pluginFiles ) do
+    local tpath = reaper.GetResourcePath() .. templates.slash .. v
+    list = self:appendPluginList(tpath, list)
+  end
+  
+  local fxTable = {}
+  self:parseFX_ini(fxTable, list, 'reaper-fxtags.ini')
+  self:parseFX_ini(fxTable, list, 'reaper-fxfolders.ini')  
+
+  local folders = {}
+  local folderTable = fxTable["Folders"]
+  if ( folderTable ) then
+    nFolders = folderTable["NbFolders"]+1
+    for i=0,nFolders-1 do
+      local name = "Name"..tostring(i)
+      local fname = "Folder"..tostring(i)      
+      if ( fxTable[fname] and folderTable[name] ) then
+        local catName = folderTable[name]
+        
+        -- Number of items in this folder?
+        local nItems = fxTable[fname]["Nb"]
+        for i=0,nItems-1 do
+          local itemName = "Item"..tostring(i)
+          local parsedName = self:parseName( fxTable[fname][itemName] )
+          if ( parsedName ) then
+            folders[parsedName] = catName
           end
         end
       end
     end
-    return fxTable
-  end  
+  end
+  fxTable["Folders"] = folders
+  
+  fxTable = self:parseMachineIni(fxTable, list)
+
+  
+  return fxTable
 end
 
 local function checkOS()
@@ -2933,33 +3048,6 @@ local function checkOS()
   if not rpath:find(":\\") then
     isMac = 1
   end
-end
-
-local function sortTable(data)
-  -- Find the keys of interest
-  local tableKeys = {}
-  local entryKeys = {}
-  for i,v in pairs(data) do
-    if type(v) == "table" then
-      tableKeys[#tableKeys+1] = i
-    else
-      entryKeys[#entryKeys+1] = v
-    end
-  end
-  table.sort( tableKeys )
-  table.sort( entryKeys )
-  
-  -- Construct the integer keyed table recursively
-  local newTable = {}
-  for i,v in pairs( tableKeys ) do
-    newTable[i] = sortTable( data[v] )
-    newTable[i].name__ = v
-  end
-  for i,v in pairs( entryKeys ) do
-    newTable[i+#tableKeys] = v
-  end
-  
-  return newTable
 end
 
 local function Main()
@@ -2993,12 +3081,7 @@ local function Main()
   
   FXlist = sortTable(FXlist)
   FXlist[#FXlist+1] = sortTable(self:loadTemplates())
-  FXlist[#FXlist].name__ = "Templates"
-  
-  builtinFXlist = self:loadBuiltins()
-  builtinFXlist = sortTable(builtinFXlist)
-  builtinFXlist[#builtinFXlist+1] = FXlist[#FXlist]
-  builtinFXlist[#builtinFXlist].name__ = "Templates"
+  FXlist[#FXlist].name__ = "Templates" 
 
   self:loadWindowPosition()
   if ( night == 1 ) then
