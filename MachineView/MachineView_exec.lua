@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.37
+@version 0.38
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.38 (2018-08-13)
+   + Hackey Trackey Integration ==> Shift + Double LMB
  * v0.37 (2018-08-13)
    + Also parse user folders now. Moved location in the code where the builtin folder is cached, to isolate bugs in case they occur and not make the whole script unusable.
  * v0.36 (2018-08-13)
@@ -118,8 +120,9 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.37"
+scriptName = "Hackey Machines v0.38"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
+hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
 machineView = {}
 machineView.tracks = {}
@@ -156,6 +159,7 @@ help = {
   {"Double click machine", "Open machine VST GUI"},
   {"Alt + Double click machine", "Open FX list"},  
   {"Ctrl + Double click machine", "Open FX list with MPL Wiredchain (needs to be installed)"},    
+  {"Shift + Double click machine", "Open Hackey Trackey on that track (if MIDI data is available)"},
   {"Leftclick drag", "Select multiple machines"},
   {"Enter", "Simulate forces between machines"},
   {"Del", "Delete machine"},
@@ -176,7 +180,7 @@ help = {
 
 defaultFile = "FXlist = {\n  Instruments = {\n    \"Kontakt\",\n    \"Play\",\n    \"VacuumPro\",\n    \"FM8\",\n    \"Massive\",\n    \"Reaktor 6\",\n    \"Oatmeal\",\n    \"Z3TA+2\",\n    \"Firebird\",\n    \"SQ8L\",\n    \"Absynth 5\",\n    \"Tyrell N6\",\n    \"Zebralette\",\n    \"Podolski\",\n    \"Hybrid\",\n    \"mda SubSynth\",\n    \"Crystal\",\n    \"Rapture\",\n    \"Claw\",\n    \"DX10\",\n    \"JX10\",\n    \"polyIblit\",\n    \"dmiHammer\"\n  },\n  Drums = {\n    \"Battery4\",\n    \"VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)\",\n    \"Kickbox\",\n  },\n  Effects = {\n    EQ = {\n      \"ReaEq\",\n     \"BootEQmkII\",\n      \"VST3: OneKnob Phatter Stereo\"\n    },\n    Filter = {\n      \"BiFilter\",\n      \"MComb\",\n      \"AtlantisFilter\",\n      \"ReaFir\",\n      \"Apple 12-Pole Filter\",\n      \"Apple 2-Pole Lowpass Filter\",\n      \"Chebyshev 4-Pole Filter\",\n      \"JS: Exciter\",\n    },\n   Modulation = {\n      \"Chorus (Improved Shaping)\",\n      \"Chorus (Stereo)\",\n      \"Chorus CH-1\",\n      \"Chorus CH-2\",\n      \"VST3: MFlanger\",\n      \"VST3: MVibrato\",\n      \"VST3: MPhaser\",\n      \"VST3: Tremolo\",\n    },\n    Dynamics = {\n      \"VST3: API-2500 Stereo\",\n      \"VST3: L1 limiter Stereo\",\n      \"VST3: TransX Wide Stereo\",\n      \"VST3: TransX Multi Stereo\",\n      \"ReaComp\",\n      \"ReaXComp\",\n      \"VST3:Percolate\",\n    },\n    Distortion = {\n      \"Amplitube 3\",\n      \"Renegade\",\n      \"VST3: MSaturator\", \n       \"VST3: MWaveShaper\",\n     \"VST3: MWaveFolder\",\n      \"Guitar Rig 5\",\n      \"Cyanide 2\",\n      \"Driver\",\n    },\n    Reverb = {\n      \"ReaVerb\",\n      \"VST3: IR-L fullStereo\",\n      \"VST3: H-Reverb Stereo/5.1\",\n      \"VST3: H-Reverb long Stereo/5.1\",\n      \"VST3: RVerb Stereo\",\n      \"epicVerb\",\n      \"Ambience\",\n      \"Hexaline\",\n      \"ModernFlashVerb\",\n    },\n    Delay = {\n      \"ReaDelay\",\n      \"VST3: H-Delay Stereo\",\n      \"VST3: STADelay\",\n      \"MjRotoDelay\",\n      \"ModernSpacer\",\n    },\n    Mastering = {\n      \"VST3: Drawmer S73\",\n      \"VST3: L1+ Ultramaximizer Stereo\",\n      \"VST3: Elephant\",\n    },\n    Strip = {\n      \"VST3: Scheps OmniChannel Stereo\",\n      \"VST3: SSLGChannel Stereo\",\n    },\n    Stereo = {\n      \"VST3: S1 Imager Stereo\",\n      \"VST3: MSpectralPan\",\n      \"VST3: MStereoExpander\",\n      \"VST3: Propane\",\n      \"Saike StereoManipulator\",\n    },\n    Gate = {\n      \"ReaGate\",\n    },\n    Pitch = {\n      \"ReaPitch\",\n      \"ReaTune\",\n    },\n    Vocoder = {\n      \"mda Talkbox\",\n    },\n    Analysis = {\n      \"SideSpectrum Meter\"\n    },\n  },\n}\n"
 --print(defaultFile)
-doubleClickInterval = 0.2
+doubleClickIntervalTarget = 0.2
 origin = { 0, 0 }
 zoom = 0.8
 
@@ -1581,10 +1585,18 @@ function block.create(track, x, y, config, viewer)
           self:toggleRec()
         else
           if ( self.lastTime and (reaper.time_precise() - self.lastTime) < doubleClickInterval ) then
-            if ( gfx.mouse_cap & 4 > 0 ) then
+            if ( gfx.mouse_cap & 4 > 0 ) then -- CTRL
               self.viewer:callScript(altDouble)
-            elseif ( gfx.mouse_cap & 16 > 0 ) then
+            elseif ( gfx.mouse_cap & 16 > 0 ) then -- ALT
               reaper.TrackFX_SetOpen(self.track, 1, true)
+            elseif ( gfx.mouse_cap & 8 > 0 ) then -- Shift
+              -- Start Hackey Trackey
+              for i=0,reaper.GetNumTracks()-1 do
+                if ( reaper.GetTrack(0, i) == self.track ) then
+                  reaper.SetProjExtState(0, "MVJV001", "initialiseAtTrack", i)                
+                end
+              end
+              self.viewer:callScript(hackeyTrackey)
             else
               reaper.TrackFX_Show(self.track, 0, 3)
               reaper.TrackFX_SetOpen(self.track, 0, true)    
@@ -2264,6 +2276,11 @@ local function findCommandID(name)
 end
 
 function machineView:callScript(scriptName)
+  if ( not scriptName ) then
+    reaper.ShowMessageBox("Error callScript called without specifying a script", "Error", 0)
+    return
+  end
+
   local cmdID = findCommandID( scriptName )
   
   if ( cmdID ) then
@@ -2289,12 +2306,20 @@ function machineView:closeFloatingWindows()
   self:quickCmdCalls( { "_S&M_WNCLS3", "_S&M_WNCLS4" } )
 end
 
+
+
 ------------------------------
 -- Main update loop
 -----------------------------
 SFX = 0
+
 local function updateLoop()
   local self = machineView    
+    
+  local ctime = reaper.time_precise()
+  local diff = ctime - (self.lastTime or 0)
+  doubleClickInterval = doubleClickIntervalTarget + diff
+  self.lastTime = ctime
   
   if ( focusRequested() == 1 ) then
     self:focusMe()
