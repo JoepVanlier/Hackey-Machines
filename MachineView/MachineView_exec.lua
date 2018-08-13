@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.38
+@version 0.41
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,16 @@
 
 --[[
  * Changelog:
+ * v0.41 (2018-08-14)
+   + Added optional grid snapping
+ * v0.40 (2018-08-13)
+   + Check if old position exists before randomizing (makes sure that undo maintains position).
+ * v0.39 (2018-08-13)
+   + Minor usability improvements
+   + Renamed REM to DEL
+   + Faster zooming
+   + Slower dial motions when holding shift and control
+   + Preventing deleting MASTER :D
  * v0.38 (2018-08-13)
    + Hackey Trackey Integration ==> Shift + Double LMB
  * v0.37 (2018-08-13)
@@ -120,7 +130,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.38"
+scriptName = "Hackey Machines v0.41"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -144,11 +154,20 @@ templates = {}
 templates.slash = '\\'
 templates.extension = ".RTrackTemplate"
 
+-- This variable is set to 1 when blocks are moved by the move routines.
+-- It is then set to 2 at the start of the next the cycle.
+-- If it 2 by the end of that cycle, we assume the user stopped moving the objects.
+machineView.blocksMoving = 0
+
 recCornerSize = .2
 
 help = {
-  {"Shift drag machine", "Connect machines"}, 
+  {"Shift drag machine", "Connect machines"},    
   {"Left click arrow", "Volume, panning, channel and disconnect controls"},
+  {"Drag on dial", "Change setting"},
+  {"Ctrl + drag on dial", "Change setting (5x slower)"},
+  {"Shift + drag on dial", "Change setting (10x slower)"},
+  {"Shift + Ctrl + drag on dial", "Change setting (50x slower)"},
   {"Ctrl click machine", "Select multiple machines"},
   {"Right click machine", "Solo, mute, rename, duplicate or remove machine"},
   {"Right click background", "Insert machine from user menu (F10 to customize)"},
@@ -156,6 +175,10 @@ help = {
   {"Middle click object", "Delete signal cable or machine"},
   {"Middle click drag", "Shift field of view"},
   {"Scrollwheel", "Adjust zoom level"},
+  {"Page up", "Minimal Zoom"},
+  {"Page down", "Default Zoom"},
+  {"Ctrl + Scrollwheel", "Adjust zoom level (5x slower)"},
+  {"Shift + Scrollwheel", "Adjust zoom level (10x slower)"},  
   {"Double click machine", "Open machine VST GUI"},
   {"Alt + Double click machine", "Open FX list"},  
   {"Ctrl + Double click machine", "Open FX list with MPL Wiredchain (needs to be installed)"},    
@@ -169,13 +192,15 @@ help = {
   {"F3", "Toggle showing track names versus machine names"},
   {"F4", "Toggle showing hidden machines"},
   {"F5", "Toggle night mode"},
+  {"F6", "Toggle snap to grid (off, on/non-visible, on/visible)"},
+  {"F7", "Snap everything to grid"},
   {"F8", "Weird stuff"},
   {"F10", "Open FX editing list (windows only)"},
   {"CTRL + R", "Set selection to record"},
   {"CTRL + S", "Save"},
   {"CTRL + Z", "Undo"},
   {"CTRL + SHIFT + Z", "Redo"},
-  {"ESCAPE", "Close floating windows"}
+  {"ESCAPE", "Close floating windows"},
 }
 
 defaultFile = "FXlist = {\n  Instruments = {\n    \"Kontakt\",\n    \"Play\",\n    \"VacuumPro\",\n    \"FM8\",\n    \"Massive\",\n    \"Reaktor 6\",\n    \"Oatmeal\",\n    \"Z3TA+2\",\n    \"Firebird\",\n    \"SQ8L\",\n    \"Absynth 5\",\n    \"Tyrell N6\",\n    \"Zebralette\",\n    \"Podolski\",\n    \"Hybrid\",\n    \"mda SubSynth\",\n    \"Crystal\",\n    \"Rapture\",\n    \"Claw\",\n    \"DX10\",\n    \"JX10\",\n    \"polyIblit\",\n    \"dmiHammer\"\n  },\n  Drums = {\n    \"Battery4\",\n    \"VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)\",\n    \"Kickbox\",\n  },\n  Effects = {\n    EQ = {\n      \"ReaEq\",\n     \"BootEQmkII\",\n      \"VST3: OneKnob Phatter Stereo\"\n    },\n    Filter = {\n      \"BiFilter\",\n      \"MComb\",\n      \"AtlantisFilter\",\n      \"ReaFir\",\n      \"Apple 12-Pole Filter\",\n      \"Apple 2-Pole Lowpass Filter\",\n      \"Chebyshev 4-Pole Filter\",\n      \"JS: Exciter\",\n    },\n   Modulation = {\n      \"Chorus (Improved Shaping)\",\n      \"Chorus (Stereo)\",\n      \"Chorus CH-1\",\n      \"Chorus CH-2\",\n      \"VST3: MFlanger\",\n      \"VST3: MVibrato\",\n      \"VST3: MPhaser\",\n      \"VST3: Tremolo\",\n    },\n    Dynamics = {\n      \"VST3: API-2500 Stereo\",\n      \"VST3: L1 limiter Stereo\",\n      \"VST3: TransX Wide Stereo\",\n      \"VST3: TransX Multi Stereo\",\n      \"ReaComp\",\n      \"ReaXComp\",\n      \"VST3:Percolate\",\n    },\n    Distortion = {\n      \"Amplitube 3\",\n      \"Renegade\",\n      \"VST3: MSaturator\", \n       \"VST3: MWaveShaper\",\n     \"VST3: MWaveFolder\",\n      \"Guitar Rig 5\",\n      \"Cyanide 2\",\n      \"Driver\",\n    },\n    Reverb = {\n      \"ReaVerb\",\n      \"VST3: IR-L fullStereo\",\n      \"VST3: H-Reverb Stereo/5.1\",\n      \"VST3: H-Reverb long Stereo/5.1\",\n      \"VST3: RVerb Stereo\",\n      \"epicVerb\",\n      \"Ambience\",\n      \"Hexaline\",\n      \"ModernFlashVerb\",\n    },\n    Delay = {\n      \"ReaDelay\",\n      \"VST3: H-Delay Stereo\",\n      \"VST3: STADelay\",\n      \"MjRotoDelay\",\n      \"ModernSpacer\",\n    },\n    Mastering = {\n      \"VST3: Drawmer S73\",\n      \"VST3: L1+ Ultramaximizer Stereo\",\n      \"VST3: Elephant\",\n    },\n    Strip = {\n      \"VST3: Scheps OmniChannel Stereo\",\n      \"VST3: SSLGChannel Stereo\",\n    },\n    Stereo = {\n      \"VST3: S1 Imager Stereo\",\n      \"VST3: MSpectralPan\",\n      \"VST3: MStereoExpander\",\n      \"VST3: Propane\",\n      \"Saike StereoManipulator\",\n    },\n    Gate = {\n      \"ReaGate\",\n    },\n    Pitch = {\n      \"ReaPitch\",\n      \"ReaTune\",\n    },\n    Vocoder = {\n      \"mda Talkbox\",\n    },\n    Analysis = {\n      \"SideSpectrum Meter\"\n    },\n  },\n}\n"
@@ -188,6 +213,7 @@ showSignals = 1
 showTrackName = 1
 showHidden = 0
 night = 0
+grid = 2
 
 local function xtrafo(x)
   return x * zoom + origin[1]
@@ -307,6 +333,7 @@ function machineView:loadColors(colorScheme)
     colors.selectionColor   = {.3, 0.2, .5, 1}    
     colors.renameColor      = colors.muteColor
     colors.playColor        = {0.2, 0.8, 0.6, 1.0}
+    colors.gridColor        = {0.05, 0.05, 0.05, 0.1}
   elseif colorScheme == "dark" then
     colors.textcolor        = {148/256, 148/256, 148/256, 1}
     colors.linecolor        = {46/256, 46/256, 46/256, 1}    
@@ -321,6 +348,7 @@ function machineView:loadColors(colorScheme)
     colors.selectionColor   = {.2, .2, .5, 1}        
     colors.renameColor      = { 0.6, 0.3, 0.5, 1.0 }
     colors.playColor        = {0.3, 1.0, 0.4, 1.0}    
+    colors.gridColor        = {0.05, 0.05, 0.3, 0.5}
   end
   -- clear colour is in a different format
   gfx.clear = colors.windowbackground[1]*256+(colors.windowbackground[2]*256*256)+(colors.windowbackground[3]*256*256*256)
@@ -732,7 +760,15 @@ function dial.create(parent, x, y, c, c2, getval, setval, disp, fg, bg)
         end
       
         -- Change and clamp value of dial
-        self.val = self.val - .015*(y-self.ly)
+        local spd = 0.015
+        if ( gfx.mouse_cap & 8 > 0 ) then
+          spd = spd / 10
+        end
+        if ( gfx.mouse_cap & 4 > 0 ) then
+          spd = spd / 5
+        end
+        
+        self.val = self.val - spd*(y-self.ly)
         if ( self.val > 1 ) then
           self.val = 1
         end
@@ -848,7 +884,7 @@ function box_ctrls.create(viewer, x, y, track, parent)
   self.ctrls[2].label = "MUTE"
 
   self.ctrls[3] = button.create(self, .8*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, killCallback)
-  self.ctrls[3].label = "REM"
+  self.ctrls[3].label = "DEL"
 
   self.ctrls[4] = button.create(self, .50*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, duplicateCallback)
   self.ctrls[4].label = "DUP"
@@ -1314,6 +1350,13 @@ function block.create(track, x, y, config, viewer)
     reaper.SetMediaTrackInfo_Value(self.track, "I_SELECTED", 0)  
   end
   
+  self.snapToGrid = function()
+    local dx = 0.5 * config.blockWidth
+    local dy = 0.5 * config.blockHeight   
+    self.x = math.floor( (self.x-self.w) / dx + 0.5 ) * dx + self.w
+    self.y = math.floor( (self.y-self.h) / dy + 0.5 ) * dy + self.h
+  end
+  
   self.updateName = function() 
     local name, ret 
     if ( showTrackName == 1 ) then
@@ -1689,6 +1732,10 @@ function block.create(track, x, y, config, viewer)
   end
   
   self.kill = function(self)
+    if ( self.isMaster ) then
+      return
+    end
+  
     reaper.Undo_BeginBlock()
     -- Remove all connections first
     reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 0)
@@ -2079,12 +2126,14 @@ function machineView:insertMachine(machine, x, y)
 end
 
 function machineView:moveObjects( diffx, diffy )
+  self.blocksMoving = 1
   for i,v in pairs(self.tracks) do
     if ( v.selected == 1 ) then
       v.x = v.x + diffx
       v.y = v.y + diffy
+      v.moved = 1
     end
-  end
+  end  
   self:invalidate()
   self:storePositions()
 end
@@ -2193,11 +2242,19 @@ end
 
 function machineView:handleZoom(mx, my)
   local dzoom = zoom
-  zoom = zoom + ( gfx.mouse_wheel / 2000 )
+  
+  local zspd = 1
+  if ( gfx.mouse_cap & 4 > 0 ) then
+    zspd = zspd / 5
+  end
+  if ( gfx.mouse_cap & 8 > 0 ) then
+    zspd = zspd / 10
+  end  
+  zoom = zoom + zspd * ( gfx.mouse_wheel / 500 )
   if ( zoom > 2 ) then
     zoom = 2
-  elseif ( zoom < 0.5 ) then
-    zoom = 0.5
+  elseif ( zoom < 0.4 ) then
+    zoom = 0.4
   end
   dzoom = dzoom - zoom
   origin[1] = origin[1] + mx * dzoom
@@ -2308,14 +2365,24 @@ end
 
 
 
+-- This variable is set to 1 when blocks are moved by the move routines.
+-- It is then set to 2 at the start of the next the cycle.
+-- If it 2 by the end of that cycle, we assume the user stopped moving the objects.
+
 ------------------------------
 -- Main update loop
 -----------------------------
 SFX = 0
-
 local function updateLoop()
-  local self = machineView    
-    
+  local self = machineView
+  
+  -- This variable is set to 1 when blocks are moved by the move routines.
+  -- It is then set to 2 at the start of the next the cycle.
+  -- If it 2 by the end of that cycle, we assume the user stopped moving the objects.
+  if ( self.blocksMoving == 1 ) then
+    self.blocksMoving = 2
+  end
+  
   local ctime = reaper.time_precise()
   local diff = ctime - (self.lastTime or 0)
   doubleClickInterval = doubleClickIntervalTarget + diff
@@ -2336,6 +2403,7 @@ local function updateLoop()
     self:loadTracks()
   end
   
+  -- Nonsensical SFX
   if ( SFX == 1 ) then
     gfx.setimgdim(2, gfx.w, gfx.h)
     gfx.dest = 2
@@ -2350,6 +2418,7 @@ local function updateLoop()
   
   self:updateGUI()
   
+  -- More SFX
   if ( SFX == 1 ) then
     gfx.dest = -1
     gfx.mode = 0
@@ -2603,6 +2672,10 @@ local function updateLoop()
       --print(lastChar)
       if ( lastChar == 6579564.0 ) then
         self:deleteMachines()
+      elseif ( lastChar == 1885828464 ) then
+        zoom = 0.4
+      elseif ( lastChar == 1885824110 ) then
+        zoom = 0.8
       elseif ( lastChar == 27 ) then
         self:closeFloatingWindows()
       elseif ( lastChar == 26 and ( gfx.mouse_cap & 4 > 0 ) ) then
@@ -2637,6 +2710,17 @@ local function updateLoop()
           v:loadColors()
         end
         self:storePositions()        
+      elseif ( lastChar == 26166 ) then
+        grid = grid + 1
+        if ( grid > 2 ) then
+          grid = 0
+        end
+      elseif ( lastChar == 26167 ) then
+        reaper.Undo_BeginBlock()
+        for i,v in pairs(self.tracks) do
+          v:snapToGrid()
+        end
+        reaper.Undo_EndBlock("Hackey Machines: Snap to Grid", -1)            
       elseif ( lastChar == 26164 ) then
         showHidden = 1 - showHidden
         self:storePositions()
@@ -2649,6 +2733,18 @@ local function updateLoop()
       self:terminate()
     end
   end
+  
+  -- User released the block, snappy snappy!
+  if ( self.blocksMoving == 2 ) then
+    if ( grid > 0 ) then
+      for i,v in pairs( self.tracks ) do
+        if ( v.moved ) then
+          v:snapToGrid()
+          v.moved = nil
+        end
+      end
+    end
+  end
 end
 
 function machineView:terminate()
@@ -2656,7 +2752,30 @@ function machineView:terminate()
 end
 
 function machineView:updateGUI()
-  local colors = self.colors
+  if ( grid > 1 ) then
+    local dX = (zoom*machineView.config.blockWidth) / 2
+    local dY = (zoom*machineView.config.blockHeight) / 2    
+    local nX = gfx.w / dX
+    local nY = gfx.h / dY
+    
+    local c1 = colors.gridColor[1]
+    local c2 = colors.gridColor[2]
+    local c3 = colors.gridColor[3]
+    local c4 = colors.gridColor[4]    
+    
+    local ox = origin[1] - math.floor((origin[1]/dX))*dX
+    local oy = origin[2] - math.floor((origin[2]/dY))*dY
+
+    local t = reaper.time_precise()
+    for i=0,nX-1 do
+      gfx.set( c1, c2, c3, c4*(.5+math.abs(math.sin(.5*i*dX+t))) )
+      gfx.line( i*dX+ox, 0, i*dX+ox, gfx.h )
+    end
+    for i=0,nY-1 do
+      gfx.set( c1, c2, c3, c4*(.5+math.abs(math.sin(.5*i*dX+t))) )    
+      gfx.line( 0, i*dY+oy, gfx.w, i*dY+oy )
+    end
+  end
 
   for i,v in pairs( self.tracks ) do
     if ( v.sinks ) then
@@ -2705,7 +2824,10 @@ function machineView:loadTracks()
       if ( self.tracks[GUID] ) then
         self.tracks[GUID].found = 1
       else
-        self:addTrack(track, math.floor((insX or 0) + .1*self.config.width*math.random()), (insY or 0) + math.floor(.1*self.config.height*math.random()))
+        local GUID = reaper.GetTrackGUID(track)
+        local x, y = self:loadMachinePosition(GUID)
+        
+        self:addTrack(track, math.floor(x or (insX or 0) + .1*self.config.width*math.random()), y or (insY or 0) + math.floor(.1*self.config.height*math.random()))
       end
       
       -- Is it selected? Then add it to the selection list
@@ -3134,6 +3256,9 @@ function machineView:loadWindowPosition()
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "night")
   if ( ok ) then showN = tonumber( v ) end
   night = showN or night
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "grid")
+  if ( ok ) then gridN = tonumber( v ) end
+  grid = gridN or grid
   
   local ox, oy, z, showS, showT, showH, gfxw, gfxh, x, y, d
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "ox")
@@ -3183,7 +3308,7 @@ function machineView:storePositions()
   
   reaper.SetProjExtState(0, "MVJV001", "ox", tostring(origin[1]))
   reaper.SetProjExtState(0, "MVJV001", "oy", tostring(origin[2]))
-  reaper.SetProjExtState(0, "MVJV001", "zoom", tostring(zoom))  
+  reaper.SetProjExtState(0, "MVJV001", "zoom", tostring(zoom))
   
   -- Store window state
   local d, x, y, w, h = gfx.dock(-1,1,1,1,1)
@@ -3197,22 +3322,34 @@ function machineView:storePositions()
   reaper.SetProjExtState(0, "MVJV001", "showTrackName", tostring(showTrackName))
   reaper.SetProjExtState(0, "MVJV001", "showHidden", tostring(showHidden))  
   reaper.SetProjExtState(0, "MVJV001", "night", tostring(night))
+  reaper.SetProjExtState(0, "MVJV001", "grid", tostring(grid))  
+end
+
+function machineView:loadMachinePosition(GUID)
+  local ok, x = reaper.GetProjExtState(0, "MVJV001", GUID.."x")
+  local ok, y = reaper.GetProjExtState(0, "MVJV001", GUID.."y")
+
+  if ( ok ) then
+    x = tonumber(x)
+    y = tonumber(y)
+    local ok, h = reaper.GetProjExtState(0, "MVJV001", GUID.."h")
+    if ( ok ) then
+      h = tonumber(h)
+    end
+
+    return x, y, h or 0
+  end
 end
 
 function machineView:loadPositions()
   for i,v in pairs(self.tracks) do
-    local ok, x = reaper.GetProjExtState(0, "MVJV001", i.."x")
-    local ok, y = reaper.GetProjExtState(0, "MVJV001", i.."y")
-    if ( ok and tonumber(x) ) then
-      v.x = tonumber(x)
-      v.y = tonumber(y)
+    local x, y = self:loadMachinePosition(i)
+    if ( x ) then
+      v.x = x
+      v.y = y
+      v.hidden = h
       v.fromSave = 1
     end
-    local ok, h = reaper.GetProjExtState(0, "MVJV001", i.."h")
-    if ( ok and h ) then
-      v.hidden = tonumber(h)
-    end
-    v.hidden = v.hidden or 0
     
     self.iterFree = 50
   end  
