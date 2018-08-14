@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="c640589544162e8e25d9fbab2135f3e829b046f1">
+<index version="1" name="Routing tools" commit="d305efea26a770f396d4a934e59eceaca134a720">
   <category name="MachineView">
     <reapack name="MachineView_exec.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -49,6 +49,13 @@ here
       <version name="0.42" author=": Joep Vanlier" time="2018-08-14T09:24:21Z">
         <changelog><![CDATA[+ Fix renderbug on linux.]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/c640589544162e8e25d9fbab2135f3e829b046f1/MachineView/MachineView_exec.lua</source>
+      </version>
+      <version name="0.44" author=": Joep Vanlier" time="2018-08-14T23:13:37Z">
+        <changelog><![CDATA[+ Added (optional) use of track colors.
++ Finished system that will allow to use multiple key/mouse bindings.
++ Added double escape = close.
++ Added hover over signal cables to visualize signal cable.]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/d305efea26a770f396d4a934e59eceaca134a720/MachineView/MachineView_exec.lua</source>
       </version>
     </reapack>
     <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines Loader">
