@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.42
+@version 0.44
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,13 @@
 
 --[[
  * Changelog:
+ * v0.44 (2018-08-14)
+   + Added (optional) use of track colors.
+   + Finished system that will allow to use multiple key/mouse bindings.
+   + Added double escape = close.
+   + Added hover over signal cables to visualize signal cable.
+ * v0.43 (2018-08-14)
+   + Groundwork for adding multiple key/mouse bindings
  * v0.42 (2018-08-14)
    + Fix renderbug on linux.
  * v0.41 (2018-08-14)
@@ -132,7 +139,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.42"
+scriptName = "Hackey Machines v0.44"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -163,6 +170,46 @@ machineView.blocksMoving = 0
 
 recCornerSize = .2
 
+local keys = {}
+
+-- 0 must be off, 1 must be on, 2 = don't care; keystroke nil means, don't check
+--                               LMB   RMB   MMB   DBL   CTRL    ALT   SHIFT   Keycode
+keys.openSinkControl    = {        1,    2,    2,    2,     2,     2,      2,      nil }    -- lmb
+keys.openSinkControl2   = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- rmb
+keys.openMachineControl = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- rmb
+keys.deleteSink         = {        0,    0,    1,    2,     2,     2,      2,      nil }    -- only mmb
+keys.deleteMachine      = {        0,    0,    1,    2,     2,     2,      2,      nil }    -- only mmb
+keys.multiSelect        = {        2,    2,    2,    2,     1,     2,      2,      nil }    -- select multiple machines (ctrl)
+keys.move               = {        1,    2,    2,    2,     2,     2,      2,      nil }    -- move machine around (lmb)
+keys.addSink            = {        2,    2,    2,    2,     2,     2,      1,      nil }    -- drag a cable out (shift, note that this is combined with move)
+keys.mplscript          = {        1,    0,    0,    1,     1,     0,      0,      nil }    -- ctrl + doubleclick
+keys.hackey             = {        1,    0,    0,    1,     0,     0,      1,      nil }    -- shift + doubleclick
+keys.showvst            = {        1,    0,    0,    1,     0,     1,      0,      nil }    -- alt + doubleclick
+keys.trackfx            = {        1,    0,    0,    1,     0,     0,      0,      nil }    -- doubleclick
+keys.additiveSelect     = keys.multiSelect                                                  -- ctrl + drag select additively adds machines
+
+keys.delete             = {        2,    2,    2,    2,     0,     0,      0,      6579564.0 }    -- delete machines (del)
+keys.minzoom            = {        2,    2,    2,    2,     0,     0,      0,      1885828464 }   -- minzoom (pgup)
+keys.maxzoom            = {        2,    2,    2,    2,     0,     0,      0,      1885824110 }   -- maxzoom (pgdown)
+keys.close              = {        2,    2,    2,    2,     0,     0,      0,      27 }           -- close windows (esc)
+keys.undo               = {        2,    2,    2,    2,     1,     0,      0,      26 }           -- undo (ctrl + z)
+keys.redo               = {        2,    2,    2,    2,     1,     0,      1,      26 }           -- undo (ctrl + shift + z)
+keys.save               = {        2,    2,    2,    2,     1,     0,      0,      19 }           -- save (ctrl + s)
+keys.hideMachines       = {        2,    2,    2,    2,     0,     0,      0,      104 }          -- hide machines (h)
+keys.simulate           = {        2,    2,    2,    2,     0,     0,      0,      13 }           -- simulate (return)
+keys.help               = {        2,    2,    2,    2,     0,     0,      0,      26161 }        -- help (F1)
+keys.recGroup           = {        2,    2,    2,    2,     1,     0,      0,      18 }           -- set record group (ctrl + r)
+keys.showSignals        = {        2,    2,    2,    2,     0,     0,      0,      26162 }        -- toggle show signals (F2)
+keys.trackNames         = {        2,    2,    2,    2,     0,     0,      0,      26163 }        -- toggle show track names (F3)
+keys.showHidden         = {        2,    2,    2,    2,     0,     0,      0,      26164 }        -- show hidden machines (F4)
+keys.night              = {        2,    2,    2,    2,     0,     0,      0,      26165 }        -- toggle night mode (F5)
+keys.grid               = {        2,    2,    2,    2,     0,     0,      0,      26166 }        -- toggle grid (F6)
+keys.snapall            = {        2,    2,    2,    2,     0,     0,      0,      26167 }        -- snap all to grid (F7)
+keys.sfx                = {        2,    2,    2,    2,     0,     0,      0,      26168 }        -- surprise! (F8)
+keys.hideWires          = {        2,    2,    2,    2,     0,     0,      0,      26169 }        -- hide wires (F9)
+keys.customizeMachines  = {        2,    2,    2,    2,     0,     0,      0,      6697264 }      -- customize machine list (F10)
+keys.toggleTrackColors  = {        2,    2,    2,    2,     0,     0,      0,      6697265 }      -- toggle track colors (F11)
+
 help = {
   {"Shift drag machine", "Connect machines"},    
   {"Left click arrow", "Volume, panning, channel and disconnect controls"},
@@ -181,8 +228,8 @@ help = {
   {"Page down", "Default Zoom"},
   {"Ctrl + Scrollwheel", "Adjust zoom level (5x slower)"},
   {"Shift + Scrollwheel", "Adjust zoom level (10x slower)"},  
-  {"Double click machine", "Open machine VST GUI"},
-  {"Alt + Double click machine", "Open FX list"},  
+  {"Double click machine", "Open FX list"},
+  {"Alt + Double click machine", "Open machine VST GUI"},  
   {"Ctrl + Double click machine", "Open FX list with MPL Wiredchain (needs to be installed)"},    
   {"Shift + Double click machine", "Open Hackey Trackey on that track (if MIDI data is available)"},
   {"Leftclick drag", "Select multiple machines"},
@@ -197,13 +244,33 @@ help = {
   {"F6", "Toggle snap to grid (off, on/non-visible, on/visible)"},
   {"F7", "Snap everything to grid"},
   {"F8", "Weird stuff"},
+  {"F9", "Hide wires"},  
   {"F10", "Open FX editing list (windows only)"},
+  {"F11", "Toggle use of track colors"},    
+  {"CTRL + H", "Hide wires"},
   {"CTRL + R", "Set selection to record"},
   {"CTRL + S", "Save"},
   {"CTRL + Z", "Undo"},
   {"CTRL + SHIFT + Z", "Redo"},
   {"ESCAPE", "Close floating windows"},
+  {"DOUBLE ESCAPE", "Close window"},  
 }
+
+local lmb, rmb, mmb, ctrl, alt, shift
+local function updateInputs()
+  lmb = gfx.mouse_cap & 1
+  if ( lmb > 0 ) then lmb = 1 end  
+  rmb = gfx.mouse_cap & 2
+  if ( rmb > 0 ) then rmb = 1 end
+  mmb = gfx.mouse_cap & 64
+  if ( mmb > 0 ) then mmb = 1 end
+  ctrl = gfx.mouse_cap & 4
+  if ( ctrl > 0 ) then ctrl = 1 end  
+  shift = gfx.mouse_cap & 8
+  if ( shift > 0 ) then shift = 1 end
+  alt = gfx.mouse_cap & 16
+  if ( alt > 0 ) then alt = 1 end
+end
 
 defaultFile = "FXlist = {\n  Instruments = {\n    \"Kontakt\",\n    \"Play\",\n    \"VacuumPro\",\n    \"FM8\",\n    \"Massive\",\n    \"Reaktor 6\",\n    \"Oatmeal\",\n    \"Z3TA+2\",\n    \"Firebird\",\n    \"SQ8L\",\n    \"Absynth 5\",\n    \"Tyrell N6\",\n    \"Zebralette\",\n    \"Podolski\",\n    \"Hybrid\",\n    \"mda SubSynth\",\n    \"Crystal\",\n    \"Rapture\",\n    \"Claw\",\n    \"DX10\",\n    \"JX10\",\n    \"polyIblit\",\n    \"dmiHammer\"\n  },\n  Drums = {\n    \"Battery4\",\n    \"VSTi: Kontakt 5 (Native Instruments GmbH) (16 out)\",\n    \"Kickbox\",\n  },\n  Effects = {\n    EQ = {\n      \"ReaEq\",\n     \"BootEQmkII\",\n      \"VST3: OneKnob Phatter Stereo\"\n    },\n    Filter = {\n      \"BiFilter\",\n      \"MComb\",\n      \"AtlantisFilter\",\n      \"ReaFir\",\n      \"Apple 12-Pole Filter\",\n      \"Apple 2-Pole Lowpass Filter\",\n      \"Chebyshev 4-Pole Filter\",\n      \"JS: Exciter\",\n    },\n   Modulation = {\n      \"Chorus (Improved Shaping)\",\n      \"Chorus (Stereo)\",\n      \"Chorus CH-1\",\n      \"Chorus CH-2\",\n      \"VST3: MFlanger\",\n      \"VST3: MVibrato\",\n      \"VST3: MPhaser\",\n      \"VST3: Tremolo\",\n    },\n    Dynamics = {\n      \"VST3: API-2500 Stereo\",\n      \"VST3: L1 limiter Stereo\",\n      \"VST3: TransX Wide Stereo\",\n      \"VST3: TransX Multi Stereo\",\n      \"ReaComp\",\n      \"ReaXComp\",\n      \"VST3:Percolate\",\n    },\n    Distortion = {\n      \"Amplitube 3\",\n      \"Renegade\",\n      \"VST3: MSaturator\", \n       \"VST3: MWaveShaper\",\n     \"VST3: MWaveFolder\",\n      \"Guitar Rig 5\",\n      \"Cyanide 2\",\n      \"Driver\",\n    },\n    Reverb = {\n      \"ReaVerb\",\n      \"VST3: IR-L fullStereo\",\n      \"VST3: H-Reverb Stereo/5.1\",\n      \"VST3: H-Reverb long Stereo/5.1\",\n      \"VST3: RVerb Stereo\",\n      \"epicVerb\",\n      \"Ambience\",\n      \"Hexaline\",\n      \"ModernFlashVerb\",\n    },\n    Delay = {\n      \"ReaDelay\",\n      \"VST3: H-Delay Stereo\",\n      \"VST3: STADelay\",\n      \"MjRotoDelay\",\n      \"ModernSpacer\",\n    },\n    Mastering = {\n      \"VST3: Drawmer S73\",\n      \"VST3: L1+ Ultramaximizer Stereo\",\n      \"VST3: Elephant\",\n    },\n    Strip = {\n      \"VST3: Scheps OmniChannel Stereo\",\n      \"VST3: SSLGChannel Stereo\",\n    },\n    Stereo = {\n      \"VST3: S1 Imager Stereo\",\n      \"VST3: MSpectralPan\",\n      \"VST3: MStereoExpander\",\n      \"VST3: Propane\",\n      \"Saike StereoManipulator\",\n    },\n    Gate = {\n      \"ReaGate\",\n    },\n    Pitch = {\n      \"ReaPitch\",\n      \"ReaTune\",\n    },\n    Vocoder = {\n      \"mda Talkbox\",\n    },\n    Analysis = {\n      \"SideSpectrum Meter\"\n    },\n  },\n}\n"
 --print(defaultFile)
@@ -211,11 +278,13 @@ doubleClickIntervalTarget = 0.2
 origin = { 0, 0 }
 zoom = 0.8
 
+useColors = 1
 showSignals = 1
 showTrackName = 1
 showHidden = 0
+hideWires = 0
 night = 0
-grid = 2
+grid = 0
 
 local function xtrafo(x)
   return x * zoom + origin[1]
@@ -276,6 +345,39 @@ function tprint (tbl, indent, maxindent, verbose)
     end
   end
 end 
+
+local function inputs( name, dbl )
+  -- Bitmask oddly enough doesn't behave as expected
+  
+  local checkMask = keys[name]
+  if ( not checkMask ) then
+    error( 'Failed to find mask for ' .. name )
+  end
+ 
+  if ( checkMask[1] == lmb or ( checkMask[1] == 2 ) ) then
+    if ( checkMask[2] == rmb or ( checkMask[2] == 2 ) ) then
+      if ( checkMask[3] == mmb or ( checkMask[3] == 2 ) ) then
+        if ( checkMask[4] == dbl or ( checkMask[4] == 2 ) ) then
+          if ( checkMask[5] == ctrl or ( checkMask[5] == 2 ) ) then
+            if ( checkMask[6] == alt or ( checkMask[6] == 2 ) ) then
+              if ( checkMask[7] == shift or ( checkMask[7] == 2 ) ) then
+                if ( checkMask[8] ) then
+                  if ( checkMask[8] == lastChar ) then
+                    return true
+                  end
+                else
+                  return true;
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  
+  return false
+end
 
 local function sortTable(data)
   -- Find the keys of interest
@@ -617,7 +719,6 @@ function button.create(parent, x, y, c, c2, callback, update, fg, bg)
     gfx.circle(x,y,c2+1,1,1)
     gfx.set( table.unpack(fg) )
     gfx.circle(x,y,c,0,1)
-    --gfx.circle(x,y,c2,0,1)
     
     if ( self.label ) then
       gfx.setfont(1, "Verdana", 10)
@@ -641,14 +742,13 @@ function button.create(parent, x, y, c, c2, callback, update, fg, bg)
     return false
   end
    
-  self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
+  self.checkMouse = function(self, x, y, lx, ly, lastcapture)
     -- Override x and y to work in screen spcae
     local x = gfx.mouse_x
     local y = gfx.mouse_y
+    
     local lmb = gfx.mouse_cap & 1
     if ( lmb > 0 ) then lmb = true else lmb = false end
-    local shift = gfx.mouse_cap & 8
-    if ( shift > 0 ) then shift = true else shift = false end
 
     -- LMB
     if ( lmb ) then  
@@ -1243,6 +1343,10 @@ function sink.create(viewer, track, idx, sinkData)
   end
   
   self.draw = function(self)
+    if ( hideWires == 1 ) then
+      return
+    end
+  
     gfx.set( table.unpack( self.color ) )
     local other = self.viewer:getBlock( self.GUID )
     local this  = self.viewer:getBlock( self.from )
@@ -1257,7 +1361,7 @@ function sink.create(viewer, track, idx, sinkData)
         wgfx.thickline( this.x, this.y, other.x, other.y, .75, 5, colors.selectionColor )
       else
         wgfx.line( this.x, this.y, other.x, other.y )
-      end      
+      end
     end    
   end
     
@@ -1272,26 +1376,17 @@ function sink.create(viewer, track, idx, sinkData)
   end
     
   self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
-    local lmb = gfx.mouse_cap & 1
-    if ( lmb > 0 ) then lmb = true else lmb = false end
-    local rmb = gfx.mouse_cap & 2
-    if ( rmb > 0 ) then rmb = true else rmb = false end    
-    local mmb = ( gfx.mouse_cap & 64 )
-    if ( mmb > 0 ) then mmb = true else mmb = false end    
-    local shift = gfx.mouse_cap & 8
-    if ( shift > 0 ) then shift = true else shift = false end
-  
-    if ( lmb or rmb ) then      
-      if ( self:checkHit( x, y ) ) then
+    if ( self:checkHit( x, y ) ) then
+      self.accent = 1
+      machineView.lastOver = self.GUID
+      if ( inputs('openSinkControl') or inputs('openSinkControl2') ) then      
         if ( not self.ctrls ) then
           self.ctrls = sink_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.loc )
           return true
         end
       end
-    end
 
-    if ( mmb ) then      
-      if ( self:checkHit( x, y ) ) then
+      if ( inputs('deleteSink') ) then
         if ( not self.ctrls ) then
           self.ctrls = sink_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.loc )
           self.ctrls:kill()
@@ -1326,8 +1421,22 @@ function block.create(track, x, y, config, viewer)
   self.record = 0
   
   self.loadColors = function(self)
-    local FG = colors.textcolor
-    local BG = colors.linecolor2  
+    local FG = { colors.textcolor[1], colors.textcolor[2], colors.textcolor[3], colors.textcolor[4] }
+    local BG = { colors.linecolor2[1], colors.linecolor2[2], colors.linecolor2[3], colors.linecolor2[4] }
+    
+    if ( useColors == 1 ) then
+      local col = reaper.GetTrackColor(self.track)
+      if ( col > 0.1 ) then
+        local o = 0.3
+        local r = math.floor((col % 2^24) / 2^16) / 255
+        local g = math.floor((col % 2^16) / 2^8) / 255
+        local b = col % 2^8 / 255
+        BG[1] = BG[1] * (1-o) + o * r
+        BG[2] = BG[2] * (1-o) + o * g
+        BG[3] = BG[3] * (1-o) + o * b
+      end
+    end
+    
     self.fg = FG
     self.bg = BG
     self.line = colors.linecolor
@@ -1561,15 +1670,13 @@ function block.create(track, x, y, config, viewer)
   end
   
   self.evaluateSelection = function(self)
-    if ( not shift ) then
-      if ( ( (gfx.mouse_cap & 4) > 0 ) ) then
-        self.selected = 1 - self.selected
-        reaper.SetMediaTrackInfo_Value(track, "I_SELECTED", self.selected)
-      elseif ( self.selected == 0 ) then
-        reaper.SetMediaTrackInfo_Value(reaper.GetMasterTrack(0), "I_SELECTED", 0)            
-        reaper.SetOnlyTrackSelected(track)
-      end
-    end  
+    if ( inputs('multiSelect') ) then
+      self.selected = 1 - self.selected
+      reaper.SetMediaTrackInfo_Value(track, "I_SELECTED", self.selected)
+    elseif ( self.selected == 0 ) then
+      reaper.SetMediaTrackInfo_Value(reaper.GetMasterTrack(0), "I_SELECTED", 0)            
+      reaper.SetOnlyTrackSelected(track)
+    end
     self.viewer:updateSelection()
   end
   
@@ -1590,28 +1697,14 @@ function block.create(track, x, y, config, viewer)
   self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
     if ( (showHidden == 0) and self.hidden == 1 ) then
       return false
-    end
+    end  
   
-    local lmb = gfx.mouse_cap & 1
-    if ( lmb > 0 ) then lmb = true else lmb = false end
-    local rmb = gfx.mouse_cap & 2
-    if ( rmb > 0 ) then rmb = true else rmb = false end    
-    local mmb = gfx.mouse_cap & 64
-    if ( mmb > 0 ) then mmb = true else mmb = false end
-    local shift = gfx.mouse_cap & 8
-    if ( shift > 0 ) then shift = true else shift = false end
-  
-    if ( rmb ) then  
-      if ( self:checkHit( x, y ) ) then
-        if ( not self.ctrls ) then
-          self.ctrls = box_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.track, self )
-          return true
-        end
-      end
-    elseif ( lmb ) then
+    local returnCondition = false
+    local doubleClick = 0
+    if ( inputs('move') ) then
       -- Were we the last capture?
       if ( self == lastcapture ) then
-        if ( shift ) then
+        if ( inputs('addSink') ) then
           if ( not self.isMaster ) then
             -- Arrow towards somewhere
             self.arrow = {}
@@ -1635,22 +1728,7 @@ function block.create(track, x, y, config, viewer)
           self:toggleRec()
         else
           if ( self.lastTime and (reaper.time_precise() - self.lastTime) < doubleClickInterval ) then
-            if ( gfx.mouse_cap & 4 > 0 ) then -- CTRL
-              self.viewer:callScript(altDouble)
-            elseif ( gfx.mouse_cap & 16 > 0 ) then -- ALT
-              reaper.TrackFX_SetOpen(self.track, 1, true)
-            elseif ( gfx.mouse_cap & 8 > 0 ) then -- Shift
-              -- Start Hackey Trackey
-              for i=0,reaper.GetNumTracks()-1 do
-                if ( reaper.GetTrack(0, i) == self.track ) then
-                  reaper.SetProjExtState(0, "MVJV001", "initialiseAtTrack", i)                
-                end
-              end
-              self.viewer:callScript(hackeyTrackey)
-            else
-              reaper.TrackFX_Show(self.track, 0, 3)
-              reaper.TrackFX_SetOpen(self.track, 0, true)    
-            end
+            doubleClick = 1
           end
           self.lastTime = reaper.time_precise()
   
@@ -1661,14 +1739,9 @@ function block.create(track, x, y, config, viewer)
           end
         end
         
-        return true
+        returnCondition = true
       end
-    else
-      if ( mmb and self:checkHit( x, y ) ) then
-        self:kill()
-        return;
-      end
-    
+    else    
       if ( self == lastcapture ) then
         -- Were we trying to connect something?
         if ( self.arrow ) then
@@ -1730,12 +1803,43 @@ function block.create(track, x, y, config, viewer)
           return false
         end
       end
+    end   
+   
+    if ( inputs('openMachineControl', doubleClick) ) then  
+      if ( self:checkHit( x, y ) ) then
+        if ( not self.ctrls ) then
+          self.ctrls = box_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.track, self )
+          return true
+        end
+      end
     end
+    
+    if ( inputs('deleteMachine', doubleClick) and self:checkHit( x, y ) ) then
+      self:kill()
+      return;
+    end
+    
+    if ( inputs('mplscript', doubleClick) and self:checkHit( x, y ) ) then -- CTRL
+      self.viewer:callScript(altDouble)
+    elseif ( inputs('showvst', doubleClick) and self:checkHit( x, y ) ) then -- ALT
+      reaper.TrackFX_Show(self.track, 0, 3)
+      reaper.TrackFX_SetOpen(self.track, 0, true)                
+    elseif ( inputs('hackey', doubleClick) and self:checkHit( x, y ) ) then -- Shift
+      -- Start Hackey Trackey
+      for i=0,reaper.GetNumTracks()-1 do
+        if ( reaper.GetTrack(0, i) == self.track ) then
+          reaper.SetProjExtState(0, "MVJV001", "initialiseAtTrack", i)                
+        end
+      end
+      self.viewer:callScript(hackeyTrackey)
+    elseif inputs('trackfx', doubleClick) and self:checkHit( x, y ) then
+      reaper.TrackFX_SetOpen(self.track, 1, true)
+    end 
    
     -- No capture, release the handle
     self.arrow = nil
     self.selectChange = nil
-    return false
+    return returnCondition
   end
   
   self.kill = function(self)
@@ -2201,7 +2305,9 @@ function machineView:selectMachines()
         if ( hit == 1 ) then
           v:select()
         else
-          v:deselect()     
+          if ( not inputs('additiveSelect') ) then
+            v:deselect()
+          end
         end
       end
     end
@@ -2380,8 +2486,9 @@ end
 -- Main update loop
 -----------------------------
 SFX = 0
-local function updateLoop()
+local function updateLoop()  
   local self = machineView
+  updateInputs()
   
   -- This variable is set to 1 when blocks are moved by the move routines.
   -- It is then set to 2 at the start of the next the cycle.
@@ -2672,41 +2779,51 @@ local function updateLoop()
     gfx.update()
     gfx.mouse_wheel = 0
     
+    if ( inputs('close') ) then
+      local ctime = reaper.time_precise()
+      self:closeFloatingWindows()
+      if ( ( ctime - (self.lastCloseAttempt or -1000000) ) < doubleClickInterval ) then
+        gfx.quit()
+        return;
+      end
+      self.lastCloseAttempt = ctime
+    end
+    
     -- Maintain the loop until the window is closed or escape is pressed
     if ( lastChar ~= -1 ) then
       reaper.defer(updateLoop)
       
-      --print(lastChar)
-      if ( lastChar == 6579564.0 ) then
+      if ( inputs('delete') ) then
         self:deleteMachines()
-      elseif ( lastChar == 1885828464 ) then
+      elseif ( inputs('minzoom') ) then
         zoom = 0.4
-      elseif ( lastChar == 1885824110 ) then
+      elseif ( inputs('maxzoom') ) then
         zoom = 0.8
-      elseif ( lastChar == 27 ) then
-        self:closeFloatingWindows()
-      elseif ( lastChar == 26 and ( gfx.mouse_cap & 4 > 0 ) ) then
+      elseif ( inputs('undo') ) then
         self:undo()
-      elseif ( lastChar == 26 and ( gfx.mouse_cap & 8 > 0 ) and ( gfx.mouse_cap & 4 > 0 ) ) then
+      elseif ( inputs('redo') ) then
         self:redo()
-      elseif ( lastChar == 19 ) and ( gfx.mouse_cap & 4 > 0 )  then
+      elseif ( inputs('save') )  then
         self:save()
-      elseif ( lastChar == 104 ) then
+      elseif ( inputs('hideMachines') ) then
         self:hideMachines()
-      elseif ( lastChar == 13 ) then
+      elseif ( inputs('simulate') ) then
         self.iter = 10
-      elseif ( lastChar == 26161 ) then
+      elseif ( inputs('help') ) then
         self.help = 1
-      elseif ( lastChar == 18 and ( gfx.mouse_cap & 4 > 0 ) ) then
+      elseif ( inputs('recGroup') ) then
         self:setRecordGroup()
-      elseif ( lastChar == 26162 ) then
+      elseif ( inputs('showSignals') ) then
         showSignals = 1 - showSignals
         self:storePositions()
-      elseif ( lastChar == 26163 ) then
+      elseif ( inputs('trackNames') ) then
         showTrackName = 1 - showTrackName
         machineView:updateNames()
         self:storePositions()
-      elseif ( lastChar == 26165 ) then
+      elseif ( inputs('showHidden') ) then
+        showHidden = 1 - showHidden
+        self:storePositions()        
+      elseif ( inputs('night') ) then
         night = 1 - night
         if ( night == 1 ) then
           self:loadColors("dark")
@@ -2717,23 +2834,28 @@ local function updateLoop()
           v:loadColors()
         end
         self:storePositions()        
-      elseif ( lastChar == 26166 ) then
+      elseif ( inputs('grid') ) then
         grid = grid + 1
         if ( grid > 2 ) then
           grid = 0
         end
-      elseif ( lastChar == 26167 ) then
+      elseif ( inputs('toggleTrackColors') ) then
+        useColors = 1 - useColors
+        for i,v in pairs(self.tracks) do
+          v:loadColors()
+        end
+        self:storePositions() 
+      elseif ( inputs('snapall') ) then
         reaper.Undo_BeginBlock()
         for i,v in pairs(self.tracks) do
           v:snapToGrid()
         end
         reaper.Undo_EndBlock("Hackey Machines: Snap to Grid", -1)            
-      elseif ( lastChar == 26164 ) then
-        showHidden = 1 - showHidden
-        self:storePositions()
-      elseif ( lastChar == 26168 ) then
+      elseif ( inputs('sfx') ) then
         SFX = 1 - SFX
-      elseif ( lastChar == 6697264 ) then
+      elseif ( inputs('hideWires') ) then
+        hideWires = 1 - hideWires
+      elseif ( inputs('customizeMachines') ) then
         launchTextEditor( getConfigFn() )
       end
     else
@@ -3280,6 +3402,9 @@ function machineView:loadWindowPosition()
   if ( ok ) then showT = tonumber( v ) end
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "showHidden")  
   if ( ok ) then showH = tonumber( v ) end      
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "useColors")  
+  if ( ok ) then showC = tonumber( v ) end    
+  useColors = showC or useColors
   
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "gfxw")  
   if ( ok ) then gfxw = tonumber( v ) end
@@ -3330,6 +3455,7 @@ function machineView:storePositions()
   reaper.SetProjExtState(0, "MVJV001", "showHidden", tostring(showHidden))  
   reaper.SetProjExtState(0, "MVJV001", "night", tostring(night))
   reaper.SetProjExtState(0, "MVJV001", "grid", tostring(grid))  
+  reaper.SetProjExtState(0, "MVJV001", "useColors", tostring(useColors))
 end
 
 function machineView:loadMachinePosition(GUID)
