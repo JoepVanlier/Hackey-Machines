@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.44
+@version 0.45
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.45 (2018-08-15)
+   + Bugfix in delete behaviour.
  * v0.44 (2018-08-14)
    + Added (optional) use of track colors.
    + Finished system that will allow to use multiple key/mouse bindings.
@@ -139,7 +141,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.44"
+scriptName = "Hackey Machines v0.45"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -2111,7 +2113,7 @@ function machineView:deleteMachines()
   for i,v in pairs(self.tracks) do
     if ( v.selected == 1 ) then
       killList[#killList + 1] = v
-  --    v:disconnect()
+      v:disconnect()
     end
   end
   for i,v in pairs( killList ) do
