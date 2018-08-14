@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.41
+@version 0.42
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.42 (2018-08-14)
+   + Fix renderbug on linux.
  * v0.41 (2018-08-14)
    + Added optional grid snapping
  * v0.40 (2018-08-13)
@@ -130,7 +132,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.41"
+scriptName = "Hackey Machines v0.42"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -1160,8 +1162,13 @@ local function getSendTargetTrack(track, idx)
   -- local retval, buf = reaper.GetTrackSendName(track, idx, "                                                                                       ")
   -- reaper.GetTrack(0, target)
 
-  -- Requires SWS
-  return reaper.BR_GetMediaTrackSendInfo_Track( track, 0, idx, 1 )
+  -- Requires SWS extensions from: http://www.sws-extension.org
+  if reaper.APIExists("BR_GetMediaTrackSendInfo_Track") then
+    return reaper.BR_GetMediaTrackSendInfo_Track( track, 0, idx, 1 )
+  else
+    reaper.ShowMessageBox( "This plugin depends on the SWS extensions", "Error", 0 )
+    error("This plugin depends on BR_GetMediaTrackSendInfo_Track in the SWS extensions")
+  end
 end
 
 ---------------------------------------
@@ -2538,8 +2545,8 @@ local function updateLoop()
     end
   elseif ( self.dragSelect ) then
     -- We are dragging an area
-    gfx.update()
     self:selectMachines()
+    gfx.update()
     reaper.defer(updateLoop)
   else
     -- Regular window behavior
@@ -3343,7 +3350,7 @@ end
 
 function machineView:loadPositions()
   for i,v in pairs(self.tracks) do
-    local x, y = self:loadMachinePosition(i)
+    local x, y, h = self:loadMachinePosition(i)
     if ( x ) then
       v.x = x
       v.y = y
