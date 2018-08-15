@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.46
+@version 0.47
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.47 (2018-08-16)
+   + Fixed issue with MASTER mute and solo behavior
  * v0.46 (2018-08-15)
    + Attempted fix for rename issue
  * v0.45 (2018-08-15)
@@ -143,7 +145,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.46"
+scriptName = "Hackey Machines v0.47"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -932,9 +934,31 @@ function box_ctrls.create(viewer, x, y, track, parent)
   local vH = self.vH
   self.ctrls = {}
     
+  local isMute = function(self)
+    local muted = reaper.GetMediaTrackInfo_Value( track, "B_MUTE" ) == 1
+    if ( self.parent.parent.isMaster ) then
+      local mutesolo = reaper.GetMasterMuteSoloFlags()
+      if ( mutesolo & 1 > 0 ) then
+        muted = true
+      end
+    end
+    return muted
+  end
+  
+  local isSolo = function(self)
+    local solo = reaper.GetMediaTrackInfo_Value( track, "I_SOLO" ) > 0
+    if ( self.parent.parent.isMaster ) then
+      local mutesolo = reaper.GetMasterMuteSoloFlags()
+      if ( mutesolo & 2 > 0 ) then
+        solo = true
+      end
+    end
+    return solo
+  end
+      
   -- Button color updaters for MUTE and SOLO
   local muteUpdate = function(self)
-    if ( reaper.GetMediaTrackInfo_Value( track, "B_MUTE" ) == 1 ) then
+    if ( isMute(self) ) then
       self.fg = colors.muteColor
     else
       self.fg = colors.inactiveColor
@@ -942,7 +966,7 @@ function box_ctrls.create(viewer, x, y, track, parent)
   end
   
   local soloUpdate = function(self)
-    if ( reaper.GetMediaTrackInfo_Value( track, "I_SOLO" ) > 0 ) then
+    if ( isSolo(self) ) then
       self.fg = colors.buttonfg
     else
       self.fg = colors.inactiveColor
@@ -1574,10 +1598,25 @@ function block.create(track, x, y, config, viewer)
     if ( (self.hidden == 0) or (showHidden == 1) ) then
       local str = self.name
       local muted = reaper.GetMediaTrackInfo_Value( self.track, "B_MUTE" )
+      if ( self.isMaster ) then
+        local mutesolo = reaper.GetMasterMuteSoloFlags()
+        if ( mutesolo & 1 > 0 ) then
+          muted = 1
+        end
+      end
       if ( muted == 1 ) then
         str = "(" .. str .. ")"
       end
-      local blockedBySolo = ( reaper.AnyTrackSolo(0) ) and ( reaper.GetMediaTrackInfo_Value( self.track, "I_SOLO" ) == 0 )
+      
+      local notSolo = reaper.GetMediaTrackInfo_Value( self.track, "I_SOLO" ) == 0
+      if ( self.isMaster ) then
+        local mutesolo = reaper.GetMasterMuteSoloFlags()
+        if ( mutesolo & 2 > 0 ) then
+          notSolo = false
+        end
+      end
+      
+      local blockedBySolo = ( reaper.AnyTrackSolo(0) ) and notSolo
       if ( blockedBySolo ) then
         str = "[" .. str .. "]"
       end
@@ -1892,22 +1931,45 @@ function block.create(track, x, y, config, viewer)
     self.ctrls = nil
   end
   
-  self.toggleMute = function(self)
+  local isMute = function(self)
     local mute = reaper.GetMediaTrackInfo_Value(self.track, "B_MUTE")
+    if ( self.isMaster ) then
+      local mutesolo = reaper.GetMasterMuteSoloFlags()
+      if ( mutesolo & 1 > 0 ) then
+        mute = 1
+      end
+    end
+    return mute
+  end
+  
+  local isSolo = function(self)
+    local solo = reaper.GetMediaTrackInfo_Value( self.track, "I_SOLO" ) > 0
+    if ( self.isMaster ) then
+      local mutesolo = reaper.GetMasterMuteSoloFlags()
+      if ( mutesolo & 2 > 0 ) then
+        solo = 1
+      end
+    end
+    return solo
+  end
+  
+  self.toggleMute = function(self)
+    local mute = isMute(self)
+    
     if ( mute == 1 ) then
       reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 0 )
     else
       reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 1 )
       
       -- If it was solo, un-solo!
-      if ( reaper.GetMediaTrackInfo_Value( self.track, "I_SOLO" ) > 0 ) then
+      if ( isSolo(self) ) then
         reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 0 )
       end
     end
   end
   
   self.toggleSolo = function(self)
-    local wasSolo = reaper.GetMediaTrackInfo_Value( self.track, "I_SOLO" ) > 0;
+    local wasSolo = isSolo(self)
     if ( wasSolo ) then
       reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 0 )
     else
