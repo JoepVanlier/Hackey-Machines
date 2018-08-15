@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.45
+@version 0.46
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.46 (2018-08-15)
+   + Attempted fix for rename issue
  * v0.45 (2018-08-15)
    + Bugfix in delete behaviour.
  * v0.44 (2018-08-14)
@@ -141,7 +143,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.45"
+scriptName = "Hackey Machines v0.46"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -198,7 +200,7 @@ keys.undo               = {        2,    2,    2,    2,     1,     0,      0,   
 keys.redo               = {        2,    2,    2,    2,     1,     0,      1,      26 }           -- undo (ctrl + shift + z)
 keys.save               = {        2,    2,    2,    2,     1,     0,      0,      19 }           -- save (ctrl + s)
 keys.hideMachines       = {        2,    2,    2,    2,     0,     0,      0,      104 }          -- hide machines (h)
-keys.simulate           = {        2,    2,    2,    2,     0,     0,      0,      13 }           -- simulate (return)
+keys.simulate           = {        2,    2,    2,    2,     1,     0,      0,      13 }           -- simulate (return)
 keys.help               = {        2,    2,    2,    2,     0,     0,      0,      26161 }        -- help (F1)
 keys.recGroup           = {        2,    2,    2,    2,     1,     0,      0,      18 }           -- set record group (ctrl + r)
 keys.showSignals        = {        2,    2,    2,    2,     0,     0,      0,      26162 }        -- toggle show signals (F2)
@@ -235,7 +237,7 @@ help = {
   {"Ctrl + Double click machine", "Open FX list with MPL Wiredchain (needs to be installed)"},    
   {"Shift + Double click machine", "Open Hackey Trackey on that track (if MIDI data is available)"},
   {"Leftclick drag", "Select multiple machines"},
-  {"Enter", "Simulate forces between machines"},
+  {"Ctrl + Enter", "Simulate forces between machines"},
   {"Del", "Delete machine"},
   {"H", "Hide machine"},
   {"F1", "Help"},
@@ -558,7 +560,12 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   end
   
   gfx.setfont(1, "Lucida Grande", math.floor(20*zoom))
-  local wc, hc = gfx.measurestr(name)
+  local wc, hc
+  if ( name == "" ) then
+    wc, hc = gfx.measurestr(".")
+  else
+    wc, hc = gfx.measurestr(name)
+  end
   if ( rnc ) then
     gfx.set( table.unpack(rnc) )
     local tc = 3*reaper.time_precise()
@@ -1421,6 +1428,7 @@ function block.create(track, x, y, config, viewer)
   self.y = y
   self.hidden = 0
   self.record = 0
+  self.renaming = 0
   
   self.loadColors = function(self)
     local FG = { colors.textcolor[1], colors.textcolor[2], colors.textcolor[3], colors.textcolor[4] }
@@ -1490,28 +1498,30 @@ function block.create(track, x, y, config, viewer)
     end
     
     if ( not name ) then
-      ret, name = reaper.TrackFX_GetFXName(track, 0, "")
-      if ( ret == true ) then    
-        local sc = string.find(name, ":", 1, true)
-        if ( sc ) then
-          name = name:sub(sc+2, -1)
-        end
-        local sc = string.find(name, "(", 1, true)
-        if ( sc ) then
-          name = name:sub(1,sc-2)
-        end
+      if ( self.renaming == 0 ) then
+        ret, name = reaper.TrackFX_GetFXName(track, 0, "")
+        if ( ret == true ) then    
+          local sc = string.find(name, ":", 1, true)
+          if ( sc ) then
+            name = name:sub(sc+2, -1)
+          end
+          local sc = string.find(name, "(", 1, true)
+          if ( sc ) then
+            name = name:sub(1,sc-2)
+          end
+          
+          -- Check if the name fits the box
+          local w, h = gfx.measurestr(name)
+          i = #name
+          while ( w > self.w ) do
+            name = name:sub(1,-2)
+            w, h = gfx.measurestr("[("..name..")]")
+          end
         
-        -- Check if the name fits the box
-        local w, h = gfx.measurestr(name)
-        i = #name
-        while ( w > self.w ) do
-          name = name:sub(1,-2)
-          w, h = gfx.measurestr("[("..name..")]")
+          self.name = name
+        else
+          self.name = "NO FX"  
         end
-      
-        self.name = name
-      else
-        self.name = "NO FX"  
       end
     end
     
@@ -2154,8 +2164,8 @@ function machineView:renameMe(track)
   showTrackName = 1
   self.renameTrack = track
   self.renameGUID = reaper.GetTrackGUID(track)
-  local jnk, name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", 0 )
-  self.oldTrackName = name
+  self.oldTrackName = self.tracks[self.renameGUID].name
+  local jnk, name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", self.oldTrackName, 1 )
   self.tracks[self.renameGUID].renaming = 1
 end
 
@@ -2591,14 +2601,12 @@ local function updateLoop()
     end
   elseif ( self.renameTrack ) then
     if ( lastChar ~= -1 ) then
-      gfx.update()
-      reaper.defer(updateLoop)
-      
       -- Renaming pattern
       local jnk, name = reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", "", 0 )
       if lastChar == 13 then -- Enter
         self.tracks[self.renameGUID].renaming = 0
         self.renameTrack = nil
+        self.tracks[self.renameGUID]:updateName()
       elseif lastChar == 27 then -- Escape
         self.tracks[self.renameGUID].renaming = 0
         reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", self.oldTrackName, 1 )
@@ -2616,6 +2624,8 @@ local function updateLoop()
           self.tracks[self.renameGUID]:updateName()          
         end
       end
+      gfx.update()
+      reaper.defer(updateLoop)
     else
       self:terminate()
     end
