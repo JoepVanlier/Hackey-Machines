@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.47
+@version 0.48
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.48 (2018-09-17)
+   + Added return to default on double-click
  * v0.47 (2018-08-16)
    + Fixed issue with MASTER mute and solo behavior
  * v0.46 (2018-08-15)
@@ -783,19 +785,20 @@ function button.create(parent, x, y, c, c2, callback, update, fg, bg)
 end
 
 dial = {}
-function dial.create(parent, x, y, c, c2, getval, setval, disp, fg, bg)
-  local self  = {}
-  self.parent = parent
-  self.x      = x
-  self.y      = y
-  self.c      = c
-  self.c2     = c2
-  self.val    = .5
-  self.bg     = fg or colors.buttonbg
-  self.fg     = bg or colors.buttonfg
-  self.getval = getval
-  self.setval = setval
-  self.disp   = disp
+function dial.create(parent, x, y, c, c2, getval, setval, disp, fg, bg, default)
+  local self   = {}
+  self.parent  = parent
+  self.x       = x
+  self.y       = y
+  self.c       = c
+  self.c2      = c2
+  self.default = default or .5
+  self.val     = self.default
+  self.bg      = fg or colors.buttonbg
+  self.fg      = bg or colors.buttonfg
+  self.getval  = getval
+  self.setval  = setval
+  self.disp    = disp
   self.drawFromCenter = 0
   
   if ( self.getval ) then
@@ -857,7 +860,7 @@ function dial.create(parent, x, y, c, c2, getval, setval, disp, fg, bg)
   end
    
   self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
-    -- Override x and y to work in screen spcae
+    -- Override x and y to work in screen space
     local x = gfx.mouse_x
     local y = gfx.mouse_y
     local lmb = gfx.mouse_cap & 1
@@ -865,13 +868,15 @@ function dial.create(parent, x, y, c, c2, getval, setval, disp, fg, bg)
     local shift = gfx.mouse_cap & 8
     if ( shift > 0 ) then shift = true else shift = false end
 
+    local ctime = reaper.time_precise()
+
     -- LMB
-    if ( lmb ) then  
+    if ( lmb ) then
       if ( self == lastcapture ) then
         if ( self.getval ) then
           self.val = self.getval()
         end
-      
+
         -- Change and clamp value of dial
         local spd = 0.015
         if ( gfx.mouse_cap & 8 > 0 ) then
@@ -898,13 +903,19 @@ function dial.create(parent, x, y, c, c2, getval, setval, disp, fg, bg)
         return true
       end
         
-      if ( self:checkHit( x, y ) ) then
+      if ( self:checkHit( x, y ) ) then      
+        if ( self.lastlmbdial == false and self.lastTime and (ctime - self.lastTime) < doubleClickInterval ) then
+          self.val = self.default
+          self.setval( self.val )
+        end
         self.lx = x
-        self.ly = y        
+        self.ly = y
+        self.lastTime = ctime
         return true
       end
     end
   
+    self.lastlmbdial = lmb
     return false
   end
   
@@ -1195,11 +1206,11 @@ function sink_ctrls.create(viewer, x, y, loc)
     self.ctrls[1].label = "V"
     self.ctrls[2] = dial.create(self, .5*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getPan, setPan, dispPan)
     self.ctrls[2].label = "P"
-    self.ctrls[2].drawFromCenter = 1  
+    self.ctrls[2].drawFromCenter = 1
 
-    self.ctrls[3] = dial.create(self, .2*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, getSource, setSource, dispCh)
+    self.ctrls[3] = dial.create(self, .2*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, getSource, setSource, dispCh, nil, nil, 0)
     self.ctrls[3].label = "From"
-    self.ctrls[4] = dial.create(self, .5*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, getTarget, setTarget, dispCh)
+    self.ctrls[4] = dial.create(self, .5*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, getTarget, setTarget, dispCh, nil, nil, 0)
     self.ctrls[4].label = "To"
 
     self.ctrls[5] = button.create(self, .8*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, killCallback)
