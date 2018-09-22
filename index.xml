@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="91b1065488804899193a10baef8abf86bca9c412">
+<index version="1" name="Routing tools" commit="abe0eca6a049d24390b8e99d25cb74a8514e1184">
   <category name="MachineView">
     <reapack name="MachineView_exec.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -72,6 +72,15 @@ here
       <version name="0.48" author=": Joep Vanlier" time="2018-09-17T19:38:12Z">
         <changelog><![CDATA[+ Added return to default on double-click]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/91b1065488804899193a10baef8abf86bca9c412/MachineView/MachineView_exec.lua</source>
+      </version>
+      <version name="0.49" author=": Joep Vanlier" time="2018-09-22T00:17:32Z">
+        <changelog><![CDATA[+ Changed grid opacity
++ Changed grid to square
++ REM => DEL for disconnect
++ Added modifier option to send audio to sidechain
++ Added option to swap move button to RMB (F12)
++ Added console messages]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/abe0eca6a049d24390b8e99d25cb74a8514e1184/MachineView/MachineView_exec.lua</source>
       </version>
     </reapack>
     <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines Loader">
