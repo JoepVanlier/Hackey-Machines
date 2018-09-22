@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.48
+@version 0.49
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,13 @@
 
 --[[
  * Changelog:
+ * v0.49 (2018-09-21)
+   + Changed grid opacity
+   + Changed grid to square
+   + REM => DEL for disconnect
+   + Added modifier option to send audio to sidechain
+   + Added option to swap move button to RMB (F12)
+   + Added console messages
  * v0.48 (2018-09-17)
    + Added return to default on double-click
  * v0.47 (2018-08-16)
@@ -155,17 +162,23 @@ machineView = {}
 machineView.tracks = {}
 machineView.config = {}
 machineView.config.blockWidth = 100
-machineView.config.blockHeight = 45
+machineView.config.blockHeight = 50
 machineView.config.width = 500
 machineView.config.height = 500
 machineView.config.x = 100
 machineView.config.y = 100
 machineView.config.d = 0
+machineView.config.square = 1
 
 machineView.config.muteOrigX = 4
 machineView.config.muteOrigY = 4
 machineView.config.muteWidth = 14
 machineView.config.muteHeight = 7
+machineView.config.keymap = 0
+machineView.config.maxkeymap = 1
+machineView.config.msgTime = 2.5
+
+messages = {}
 
 templates = {}
 templates.slash = '\\'
@@ -179,44 +192,58 @@ machineView.blocksMoving = 0
 recCornerSize = .2
 
 local keys = {}
+local keymapNames = {}
+keymapNames[0] = 'default'
+keymapNames[1] = 'foxAsteria'
 
--- 0 must be off, 1 must be on, 2 = don't care; keystroke nil means, don't check
---                               LMB   RMB   MMB   DBL   CTRL    ALT   SHIFT   Keycode
-keys.openSinkControl    = {        1,    2,    2,    2,     2,     2,      2,      nil }    -- lmb
-keys.openSinkControl2   = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- rmb
-keys.openMachineControl = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- rmb
-keys.deleteSink         = {        0,    0,    1,    2,     2,     2,      2,      nil }    -- only mmb
-keys.deleteMachine      = {        0,    0,    1,    2,     2,     2,      2,      nil }    -- only mmb
-keys.multiSelect        = {        2,    2,    2,    2,     1,     2,      2,      nil }    -- select multiple machines (ctrl)
-keys.move               = {        1,    2,    2,    2,     2,     2,      2,      nil }    -- move machine around (lmb)
-keys.addSink            = {        2,    2,    2,    2,     2,     2,      1,      nil }    -- drag a cable out (shift, note that this is combined with move)
-keys.mplscript          = {        1,    0,    0,    1,     1,     0,      0,      nil }    -- ctrl + doubleclick
-keys.hackey             = {        1,    0,    0,    1,     0,     0,      1,      nil }    -- shift + doubleclick
-keys.showvst            = {        1,    0,    0,    1,     0,     1,      0,      nil }    -- alt + doubleclick
-keys.trackfx            = {        1,    0,    0,    1,     0,     0,      0,      nil }    -- doubleclick
-keys.additiveSelect     = keys.multiSelect                                                  -- ctrl + drag select additively adds machines
-
-keys.delete             = {        2,    2,    2,    2,     0,     0,      0,      6579564.0 }    -- delete machines (del)
-keys.minzoom            = {        2,    2,    2,    2,     0,     0,      0,      1885828464 }   -- minzoom (pgup)
-keys.maxzoom            = {        2,    2,    2,    2,     0,     0,      0,      1885824110 }   -- maxzoom (pgdown)
-keys.close              = {        2,    2,    2,    2,     0,     0,      0,      27 }           -- close windows (esc)
-keys.undo               = {        2,    2,    2,    2,     1,     0,      0,      26 }           -- undo (ctrl + z)
-keys.redo               = {        2,    2,    2,    2,     1,     0,      1,      26 }           -- undo (ctrl + shift + z)
-keys.save               = {        2,    2,    2,    2,     1,     0,      0,      19 }           -- save (ctrl + s)
-keys.hideMachines       = {        2,    2,    2,    2,     0,     0,      0,      104 }          -- hide machines (h)
-keys.simulate           = {        2,    2,    2,    2,     1,     0,      0,      13 }           -- simulate (return)
-keys.help               = {        2,    2,    2,    2,     0,     0,      0,      26161 }        -- help (F1)
-keys.recGroup           = {        2,    2,    2,    2,     1,     0,      0,      18 }           -- set record group (ctrl + r)
-keys.showSignals        = {        2,    2,    2,    2,     0,     0,      0,      26162 }        -- toggle show signals (F2)
-keys.trackNames         = {        2,    2,    2,    2,     0,     0,      0,      26163 }        -- toggle show track names (F3)
-keys.showHidden         = {        2,    2,    2,    2,     0,     0,      0,      26164 }        -- show hidden machines (F4)
-keys.night              = {        2,    2,    2,    2,     0,     0,      0,      26165 }        -- toggle night mode (F5)
-keys.grid               = {        2,    2,    2,    2,     0,     0,      0,      26166 }        -- toggle grid (F6)
-keys.snapall            = {        2,    2,    2,    2,     0,     0,      0,      26167 }        -- snap all to grid (F7)
-keys.sfx                = {        2,    2,    2,    2,     0,     0,      0,      26168 }        -- surprise! (F8)
-keys.hideWires          = {        2,    2,    2,    2,     0,     0,      0,      26169 }        -- hide wires (F9)
-keys.customizeMachines  = {        2,    2,    2,    2,     0,     0,      0,      6697264 }      -- customize machine list (F10)
-keys.toggleTrackColors  = {        2,    2,    2,    2,     0,     0,      0,      6697265 }      -- toggle track colors (F11)
+local function initializeKeys( keymap )
+  -- 0 must be off, 1 must be on, 2 = don't care; keystroke nil means, don't check
+  --                               LMB   RMB   MMB   DBL   CTRL    ALT   SHIFT   Keycode
+  keys.openSinkControl    = {        1,    2,    2,    2,     2,     2,      2,      nil }    -- lmb
+  keys.openSinkControl2   = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- rmb
+  keys.openMachineControl = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- rmb
+  keys.deleteSink         = {        0,    0,    1,    2,     2,     2,      2,      nil }    -- only mmb
+  keys.deleteMachine      = {        0,    0,    1,    2,     2,     2,      2,      nil }    -- only mmb
+  keys.multiSelect        = {        2,    2,    2,    2,     1,     2,      2,      nil }    -- select multiple machines (ctrl)
+  keys.move               = {        1,    2,    2,    2,     2,     2,      2,      nil }    -- move machine around (lmb)
+  keys.addSink            = {        2,    2,    2,    2,     2,     2,      1,      nil }    -- drag a cable out (shift, note that this is combined with move)
+  keys.addSinkSecond      = {        2,    2,    2,    2,     1,     2,      1,      nil }    -- drag a cable out (shift, note that this is combined with move)
+  keys.mplscript          = {        1,    0,    0,    1,     1,     0,      0,      nil }    -- ctrl + doubleclick
+  keys.hackey             = {        1,    0,    0,    1,     0,     0,      1,      nil }    -- shift + doubleclick
+  keys.showvst            = {        1,    0,    0,    1,     0,     1,      0,      nil }    -- alt + doubleclick
+  keys.trackfx            = {        1,    0,    0,    1,     0,     0,      0,      nil }    -- doubleclick
+  keys.additiveSelect     = keys.multiSelect                                                  -- ctrl + drag select additively adds machines
+  keys.drag               = {        2,    2,    1,    2,     2,     2,      2,      nil }    -- drag field of view (mmb)
+  keys.addMachine         = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- add machine (rmb)
+  
+  keys.delete             = {        2,    2,    2,    2,     0,     0,      0,      6579564.0 }    -- delete machines (del)
+  keys.minzoom            = {        2,    2,    2,    2,     0,     0,      0,      1885828464 }   -- minzoom (pgup)
+  keys.maxzoom            = {        2,    2,    2,    2,     0,     0,      0,      1885824110 }   -- maxzoom (pgdown)
+  keys.close              = {        2,    2,    2,    2,     0,     0,      0,      27 }           -- close windows (esc)
+  keys.undo               = {        2,    2,    2,    2,     1,     0,      0,      26 }           -- undo (ctrl + z)
+  keys.redo               = {        2,    2,    2,    2,     1,     0,      1,      26 }           -- undo (ctrl + shift + z)
+  keys.save               = {        2,    2,    2,    2,     1,     0,      0,      19 }           -- save (ctrl + s)
+  keys.hideMachines       = {        2,    2,    2,    2,     0,     0,      0,      104 }          -- hide machines (h)
+  keys.simulate           = {        2,    2,    2,    2,     1,     0,      0,      13 }           -- simulate (return)
+  keys.help               = {        2,    2,    2,    2,     0,     0,      0,      26161 }        -- help (F1)
+  keys.recGroup           = {        2,    2,    2,    2,     1,     0,      0,      18 }           -- set record group (ctrl + r)
+  keys.showSignals        = {        2,    2,    2,    2,     0,     0,      0,      26162 }        -- toggle show signals (F2)
+  keys.trackNames         = {        2,    2,    2,    2,     0,     0,      0,      26163 }        -- toggle show track names (F3)
+  keys.showHidden         = {        2,    2,    2,    2,     0,     0,      0,      26164 }        -- show hidden machines (F4)
+  keys.night              = {        2,    2,    2,    2,     0,     0,      0,      26165 }        -- toggle night mode (F5)
+  keys.grid               = {        2,    2,    2,    2,     0,     0,      0,      26166 }        -- toggle grid (F6)
+  keys.snapall            = {        2,    2,    2,    2,     0,     0,      0,      26167 }        -- snap all to grid (F7)
+  keys.sfx                = {        2,    2,    2,    2,     0,     0,      0,      26168 }        -- surprise! (F8)
+  keys.hideWires          = {        2,    2,    2,    2,     0,     0,      0,      26169 }        -- hide wires (F9)
+  keys.customizeMachines  = {        2,    2,    2,    2,     0,     0,      0,      6697264 }      -- customize machine list (F10)
+  keys.toggleTrackColors  = {        2,    2,    2,    2,     0,     0,      0,      6697265 }      -- toggle track colors (F11)
+  keys.toggleKeymap       = {        2,    2,    2,    2,     0,     0,      0,      6697266 }      -- toggle key map (F12)  
+  
+  if ( keymap == 1 ) then
+    keys.addMachine         = {        2,    2,    1,    2,     2,     2,      2,      nil }    -- add machine (mmb)
+    keys.drag               = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- drag field of view (rmb)
+  end
+end
 
 help = {
   {"Shift drag machine", "Connect machines"},    
@@ -255,6 +282,7 @@ help = {
   {"F9", "Hide wires"},  
   {"F10", "Open FX editing list (windows only)"},
   {"F11", "Toggle use of track colors"},    
+  {"F12", "Toggle key layout (0 = default, 1 = RMB drag, MMB insert machine)"},
   {"CTRL + H", "Hide wires"},
   {"CTRL + R", "Set selection to record"},
   {"CTRL + S", "Save"},
@@ -356,12 +384,11 @@ end
 
 local function inputs( name, dbl )
   -- Bitmask oddly enough doesn't behave as expected
-  
   local checkMask = keys[name]
   if ( not checkMask ) then
     error( 'Failed to find mask for ' .. name )
   end
- 
+  
   if ( checkMask[1] == lmb or ( checkMask[1] == 2 ) ) then
     if ( checkMask[2] == rmb or ( checkMask[2] == 2 ) ) then
       if ( checkMask[3] == mmb or ( checkMask[3] == 2 ) ) then
@@ -370,7 +397,7 @@ local function inputs( name, dbl )
             if ( checkMask[6] == alt or ( checkMask[6] == 2 ) ) then
               if ( checkMask[7] == shift or ( checkMask[7] == 2 ) ) then
                 if ( checkMask[8] ) then
-                  if ( checkMask[8] == lastChar ) then
+                  if ( checkMask[8] == lastChar and prevChar == 0 ) then
                     return true
                   end
                 else
@@ -414,6 +441,46 @@ local function sortTable(data)
   return newTable
 end
 
+function machineView:printMessage( msg )
+  messages[#messages+1] = { self.config.msgTime, msg }
+end
+
+
+function machineView:drawMessages(t)
+  local fontsize = 12
+  local messages = messages
+  local cTime = reaper.time_precise()
+  local dt = cTime - (self.lastMsgTime or cTime)
+  local i = 1
+  local x = 10
+  local y = 10
+  while ( i < #messages+1 ) do
+    messages[i][1] = messages[i][1] - dt
+    if ( messages[i][1] < 0 ) then
+      messages[i] = nil
+      for j = i,#messages-1 do
+        messages[j] = messages[j+1]
+      end
+      messages[#messages] = nil
+    else
+      gfx.setfont(1, "Verdana", fontsize)
+      if ( night == 1 ) then
+        gfx.set(.7, .7, .7, .9)      
+      else
+        gfx.set(.2, .2, .2, .9)
+      end
+      gfx.x = x
+      gfx.y = y
+      gfx.drawstr(messages[i][2])
+    end
+    
+    y = y + fontsize + 2
+    i = i + 1
+  end
+  
+  self.lastMsgTime = cTime
+end
+
 -- Grab the focus
 function machineView:focusMe()
   reaper.SetProjExtState(0, "MVJV001", "requestFocus", tonumber(0))
@@ -445,7 +512,7 @@ function machineView:loadColors(colorScheme)
     colors.selectionColor   = {.3, 0.2, .5, 1}    
     colors.renameColor      = colors.muteColor
     colors.playColor        = {0.2, 0.8, 0.6, 1.0}
-    colors.gridColor        = {0.05, 0.05, 0.05, 0.1}
+    colors.gridColor        = {0.05, 0.05, 0.05, 0.2}
   elseif colorScheme == "dark" then
     colors.textcolor        = {148/256, 148/256, 148/256, 1}
     colors.linecolor        = {46/256, 46/256, 46/256, 1}    
@@ -460,7 +527,7 @@ function machineView:loadColors(colorScheme)
     colors.selectionColor   = {.2, .2, .5, 1}        
     colors.renameColor      = { 0.6, 0.3, 0.5, 1.0 }
     colors.playColor        = {0.3, 1.0, 0.4, 1.0}    
-    colors.gridColor        = {0.05, 0.05, 0.3, 0.5}
+    colors.gridColor        = {0.35, 0.25, 0.53, 0.3}
   end
   -- clear colour is in a different format
   gfx.clear = colors.windowbackground[1]*256+(colors.windowbackground[2]*256*256)+(colors.windowbackground[3]*256*256*256)
@@ -480,10 +547,17 @@ local function get_script_path()
   return script_path
 end
 
-local function getConfigFn()
+local function getFXListFn()
   local dir = get_script_path()
   local scriptname = dir.."FX_list"
   local filename = scriptname..".lua"
+  return filename
+end
+
+local function getConfigFn()
+  local dir = get_script_path()
+  local scriptname = dir.."config"
+  local filename = scriptname..".cfg"
   return filename
 end
 
@@ -1196,7 +1270,7 @@ function sink_ctrls.create(viewer, x, y, loc)
     self.ctrls[2].label = "P"
     self.ctrls[2].drawFromCenter = 1  
     self.ctrls[3] = button.create(self, .75*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, killCallback)
-    self.ctrls[3].label = "REM"
+    self.ctrls[3].label = "DEL"
     if ( not loc.isMaster ) then
       self.ctrls[4] = button.create(self, .25*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, convertToSend)
       self.ctrls[4].label = "SEND"
@@ -1214,7 +1288,7 @@ function sink_ctrls.create(viewer, x, y, loc)
     self.ctrls[4].label = "To"
 
     self.ctrls[5] = button.create(self, .8*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, killCallback)
-    self.ctrls[5].label = "REM"
+    self.ctrls[5].label = "DEL"
   end
   
   self.convertToSend = function( self )
@@ -1447,7 +1521,6 @@ function sink.create(viewer, track, idx, sinkData)
   return self
 end
 
-
 ---------------------------------------------------
 -- BLOCK
 ---------------------------------------------------
@@ -1509,13 +1582,13 @@ function block.create(track, x, y, config, viewer)
   self.deselect = function(self)
     self.selected = 0
     reaper.SetMediaTrackInfo_Value(self.track, "I_SELECTED", 0)  
-  end
+  end  
   
   self.snapToGrid = function()
-    local dx = 0.5 * config.blockWidth
-    local dy = 0.5 * config.blockHeight   
-    self.x = math.floor( (self.x-self.w) / dx + 0.5 ) * dx + self.w
-    self.y = math.floor( (self.y-self.h) / dy + 0.5 ) * dy + self.h
+    dx = config.gridx
+    dy = config.gridy
+    self.x = math.floor( (self.x-.5*self.w) / dx + .5 ) * dx + .5 * self.w
+    self.y = math.floor( (self.y-.5*self.h) / dy + .5 ) * dy + .5 * self.h
   end
   
   self.updateName = function() 
@@ -1581,6 +1654,11 @@ function block.create(track, x, y, config, viewer)
   self.drawConnections = function()
     if ( self.arrow ) then
       wgfx.line( self.x, self.y, self.arrow.X, self.arrow.Y )
+      if ( self.arrow.C ) then
+        local f = 5
+        wgfx.line( self.arrow.X-f, self.arrow.Y-f, self.arrow.X+f, self.arrow.Y+f )
+        wgfx.line( self.arrow.X-f, self.arrow.Y+f, self.arrow.X+f, self.arrow.Y-f )        
+      end
     end      
     if ( self.sinks ) then
       for i,v in pairs( self.sinks ) do
@@ -1772,6 +1850,9 @@ function block.create(track, x, y, config, viewer)
             self.arrow = {}
             self.arrow.X = x
             self.arrow.Y = y
+            if ( inputs('addSinkSecond') ) then
+              self.arrow.C = 2
+            end
             return true
           end
         end
@@ -1812,52 +1893,61 @@ function block.create(track, x, y, config, viewer)
           if ( other ) then
             -- Found block to connect to          
             local otherTrack = other.track
-            -- Check if we are connecting to the master track (mainsend)
-            local depth = reaper.GetTrackDepth(self.track)
-            if ( otherTrack == reaper.GetMasterTrack(0) ) then
-              --print( "Attempt to connect to master" )
-              if ( depth == 0 ) then
+            
+            -- This is a sidechain attachment
+            if ( inputs('addSinkSecond') ) then
+              local newSend = reaper.CreateTrackSend(self.track, otherTrack)
+              if ( newSend >= 0 ) then
+                reaper.SetTrackSendInfo_Value(self.track, 0, newSend, "I_DSTCHAN", 2)
+              end
+            else
+              -- Check if we are connecting to the master track (mainsend)
+              local depth = reaper.GetTrackDepth(self.track)
+              if ( otherTrack == reaper.GetMasterTrack(0) ) then
+                --print( "Attempt to connect to master" )
+                if ( depth == 0 ) then
+                  reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 1)
+                else
+                  -- This is a difficult case as the only way to send to master is to make the depth 0
+                  -- However, this also means that we have to be careful about any other routing that might take place.
+                  
+                  -- 1. The send to its parent needs to be made explicit if it is present
+                  local sendsToParent = reaper.GetMediaTrackInfo_Value(self.track, "B_MAINSEND")
+                  if ( sendsToParent == 1 ) then
+                    reaper.CreateTrackSend(self.track, reaper.GetParentTrack(self.track))
+                  end               
+                  
+                  -- 2. Find its current index, find closest location with depth = 0 and only select current track
+                  local idx = -1;
+                  local d0idx = -1;
+                  for i=0,reaper.GetNumTracks()-1 do
+                    local curTrack = reaper.GetTrack(0, i)
+                    local depth = reaper.GetTrackDepth(curTrack)
+                    if ( depth == 0 ) then
+                      d0idx = i;
+                    end
+                    if ( self.track == curTrack ) then
+                      idx = i;
+                      break;
+                    end
+                  end
+                  reaper.SetOnlyTrackSelected(self.track)
+                  
+                  -- 3. Move the track to a place where the depth = 0               
+                  reaper.ReorderSelectedTracks( d0idx, 0 )
+                  
+                  -- 4. Send to master :)
+                  reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 1)             
+                end
+              elseif ( otherTrack == reaper.GetParentTrack(self.track) ) then
+                -- Check if we are connecting to the parent (mainsend)
+                --print( "Attempt to connect to parent" )
                 reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 1)
               else
-                -- This is a difficult case as the only way to send to master is to make the depth 0
-                -- However, this also means that we have to be careful about any other routing that might take place.
-                
-                -- 1. The send to its parent needs to be made explicit if it is present
-                local sendsToParent = reaper.GetMediaTrackInfo_Value(self.track, "B_MAINSEND")
-                if ( sendsToParent == 1 ) then
-                  reaper.CreateTrackSend(self.track, reaper.GetParentTrack(self.track))
-                end               
-                
-                -- 2. Find its current index, find closest location with depth = 0 and only select current track
-                local idx = -1;
-                local d0idx = -1;
-                for i=0,reaper.GetNumTracks()-1 do
-                  local curTrack = reaper.GetTrack(0, i)
-                  local depth = reaper.GetTrackDepth(curTrack)
-                  if ( depth == 0 ) then
-                    d0idx = i;
-                  end
-                  if ( self.track == curTrack ) then
-                    idx = i;
-                    break;
-                  end
-                end
-                reaper.SetOnlyTrackSelected(self.track)
-                
-                -- 3. Move the track to a place where the depth = 0               
-                reaper.ReorderSelectedTracks( d0idx, 0 )
-                
-                -- 4. Send to master :)
-                reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 1)             
+                -- Other
+                -- print( "Attempt to connect other" )
+                reaper.CreateTrackSend(self.track, otherTrack)
               end
-            elseif ( otherTrack == reaper.GetParentTrack(self.track) ) then
-              -- Check if we are connecting to the parent (mainsend)
-              --print( "Attempt to connect to parent" )
-              reaper.SetMediaTrackInfo_Value(self.track, "B_MAINSEND", 1)
-            else
-              -- Other
-              -- print( "Attempt to connect other" )
-              reaper.CreateTrackSend(self.track, otherTrack)
             end
           else
             -- Did not find block to connect to
@@ -2226,7 +2316,7 @@ function machineView:updateMouseState(mx, my)
     local mmb = ( gfx.mouse_cap & 64 )
     if ( lmb > 0 ) then self.lmb = true else self.lmb = false end
     if ( rmb > 0 ) then self.rmb = true else self.rmb = false end
-    if ( mmb > 0 ) then self.mmb = true else self.mmb = false end
+    if ( mmb > 0 ) then self.mmb = true else self.mmb = false end    
 end
 
 function machineView:invalidate()
@@ -2462,8 +2552,10 @@ function machineView:handleZoom(mx, my)
   end
 end
 
+
 function machineView:handleDrag()
-  if ( ( gfx.mouse_cap & 64 ) > 0 ) then
+--  if ( ( gfx.mouse_cap & 64 ) > 0 ) then
+  if ( inputs('drag') ) then
     if ( self.ldragx ) then
       local dx = gfx.mouse_x - self.ldragx
       local dy = gfx.mouse_y - self.ldragy
@@ -2826,7 +2918,7 @@ local function updateLoop()
       if ( not captured ) then
         if ( ( gfx.mouse_cap & 1 ) > 0 ) then
           self.dragSelect = { gfx.mouse_x, gfx.mouse_y, 0, 0 }
-        elseif ( ( gfx.mouse_cap & 2 ) > 0 ) then
+        elseif ( inputs('addMachine') ) then
           if ( gfx.mouse_cap & 8 > 0 ) then
             if ( not builtinFXlist ) then
               builtinFXlist = self:loadBuiltins()
@@ -2880,6 +2972,15 @@ local function updateLoop()
       
       if ( inputs('delete') ) then
         self:deleteMachines()
+      elseif ( inputs('toggleKeymap') ) then
+        self.config.keymap = self.config.keymap + 1
+        if ( self.config.keymap > self.config.maxkeymap ) then
+          self.config.keymap = 0
+        end
+        local filename = getConfigFn()
+        saveCFG(filename, self.config)
+        self:printMessage( "Switching to keymap " .. self.config.keymap .. ": " .. keymapNames[self.config.keymap] )
+        initializeKeys(self.config.keymap)        
       elseif ( inputs('minzoom') ) then
         zoom = 0.4
       elseif ( inputs('maxzoom') ) then
@@ -2891,6 +2992,7 @@ local function updateLoop()
       elseif ( inputs('save') )  then
         self:save()
       elseif ( inputs('hideMachines') ) then
+        self:printMessage( "Toggle hide machines" )
         self:hideMachines()
       elseif ( inputs('simulate') ) then
         self.iter = 10
@@ -2900,13 +3002,28 @@ local function updateLoop()
         self:setRecordGroup()
       elseif ( inputs('showSignals') ) then
         showSignals = 1 - showSignals
+        if ( showSignals == 1 ) then
+          self:printMessage( "Showing signals" )
+        else
+          self:printMessage( "Not showing signals" )        
+        end
         self:storePositions()
       elseif ( inputs('trackNames') ) then
         showTrackName = 1 - showTrackName
+        if ( showTrackName == 1 ) then
+          self:printMessage( "Showing track names" )
+        else
+          self:printMessage( "Not showing track names" )        
+        end
         machineView:updateNames()
         self:storePositions()
       elseif ( inputs('showHidden') ) then
         showHidden = 1 - showHidden
+        if ( showHidden == 1 ) then
+          self:printMessage( "Showing hidden machines" )
+        else
+          self:printMessage( "Hiding hidden machines" )        
+        end
         self:storePositions()        
       elseif ( inputs('night') ) then
         night = 1 - night
@@ -2924,6 +3041,13 @@ local function updateLoop()
         if ( grid > 2 ) then
           grid = 0
         end
+        if ( grid == 1 ) then
+          self:printMessage( "Snap to grid active (invisible)" )
+        elseif ( grid == 2 ) then
+          self:printMessage( "Snap to grid active (visible)" )
+        else
+          self:printMessage( "Snap to grid inactive" )
+        end
       elseif ( inputs('toggleTrackColors') ) then
         useColors = 1 - useColors
         for i,v in pairs(self.tracks) do
@@ -2935,13 +3059,14 @@ local function updateLoop()
         for i,v in pairs(self.tracks) do
           v:snapToGrid()
         end
+        self:printMessage( "Snapping all machines to grid" )        
         reaper.Undo_EndBlock("Hackey Machines: Snap to Grid", -1)            
       elseif ( inputs('sfx') ) then
         SFX = 1 - SFX
       elseif ( inputs('hideWires') ) then
         hideWires = 1 - hideWires
       elseif ( inputs('customizeMachines') ) then
-        launchTextEditor( getConfigFn() )
+        launchTextEditor( getFXListFn() )
       end
     else
       self:terminate()
@@ -2965,10 +3090,23 @@ function machineView:terminate()
   self:storePositions()
 end
 
+function machineView:updateGridSize()
+  if ( self.config.square == 1 ) then
+    self.config.gridx = 0.5 * self.config.blockHeight
+    self.config.gridy = 0.5 * self.config.blockHeight
+  else
+    self.config.gridx = 0.5 * self.config.blockWidth
+    self.config.gridy = 0.5 * self.config.blockHeight
+  end
+end
+
 function machineView:updateGUI()
+  self:updateGridSize()
+  self:drawMessages()
+
   if ( grid > 1 ) then
-    local dX = (zoom*machineView.config.blockWidth) / 2
-    local dY = (zoom*machineView.config.blockHeight) / 2    
+    local dX = (zoom*machineView.config.gridx)
+    local dY = (zoom*machineView.config.gridy)  
     local nX = gfx.w / dX
     local nY = gfx.h / dY
     
@@ -3411,18 +3549,55 @@ local function checkOS()
   end
 end
 
+function loadCFG(fn, cfg)
+    local file = io.open(fn, "r")
+    
+    if ( file ) then
+      io.input(file)
+      local str = io.read()
+      while ( str ) do
+        for k, v in string.gmatch(str, "(%w+)=(%w+)") do
+          local no = tonumber(v)
+        
+          if ( no ) then
+            cfg[k] = no
+          else
+            cfg[k] = v
+          end
+        end
+        str = io.read()
+      end
+      io.close(file)
+    end
+    
+    return cfg
+end
+
+function saveCFG(fn, cfg)
+  local file = io.open(fn, "w+")
+  
+  if ( file ) then
+    io.output(file)
+    for i,v in pairs(cfg) do
+      io.write( string.format('%s=%s\n', i, v) )
+    end
+    io.close(file)
+  end
+end
+
 local function Main()
   local self = machineView
   local reaper = reaper
   local ok, v = reaper.SetProjExtState(0, "MVJV001", "requestFocus", tonumber(0))
   checkOS()
+  
   if ( isMac ) then
     templates.slash = '/'
   else
     templates.slash = '\\'
   end
   
-  local filename = getConfigFn()
+  local filename = getFXListFn()
   if ( file_exists(filename) == false ) then
     local file = io.open(filename, "w+")
     
@@ -3439,6 +3614,10 @@ local function Main()
     launchTextEditor(filename)
     return;
   end
+  
+  local filename = getConfigFn()
+  self.config = loadCFG(filename, self.config)
+  initializeKeys(self.config.keymap)
   
   FXlist = sortTable(FXlist)
   FXlist[#FXlist+1] = sortTable(self:loadTemplates())
