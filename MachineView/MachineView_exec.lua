@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.49
+@version 0.50
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.50 (2018-09-27)
+   + Suppress dialog when VST machine list doesn't exist
  * v0.49 (2018-09-21)
    + Changed grid opacity
    + Changed grid to square
@@ -3411,7 +3413,7 @@ function machineView:appendPluginList(fn, list)
       end
     end
   else
-    reaper.ShowMessageBox( "Could not find plugin ini file:" .. fn, "Error", 0 )
+    --reaper.ShowMessageBox( "Could not find plugin ini file:" .. fn, "Error", 0 )
   end
   
   return list, names
