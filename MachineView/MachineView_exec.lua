@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.50
+@version 0.51
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.51 (2018-10-19)
+   + Show signal cable as active when manipulating signal
+   + Make doubleclick focus on first effect
  * v0.50 (2018-09-27)
    + Suppress dialog when VST machine list doesn't exist
  * v0.49 (2018-09-21)
@@ -156,7 +159,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.47"
+scriptName = "Hackey Machines v0.51"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -1477,12 +1480,12 @@ function sink.create(viewer, track, idx, sinkData)
       wgfx.line( indicatorPoly[2][1], indicatorPoly[2][2], indicatorPoly[3][1], indicatorPoly[3][2] )
       wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[3][1], indicatorPoly[3][2] )
 
-      if ( self.accent ) then
+      if ( self.accent or self.ctrls ) then
         wgfx.thickline( this.x, this.y, other.x, other.y, .75, 5, colors.selectionColor )
       else
         wgfx.line( this.x, this.y, other.x, other.y )
       end
-    end    
+    end
   end
     
   self.drawCtrl = function(self)
@@ -1987,7 +1990,8 @@ function block.create(track, x, y, config, viewer)
       end
       self.viewer:callScript(hackeyTrackey)
     elseif inputs('trackfx', doubleClick) and self:checkHit( x, y ) then
-      reaper.TrackFX_SetOpen(self.track, 1, true)
+    
+      reaper.TrackFX_SetOpen(self.track, 0, true)
     end 
    
     -- No capture, release the handle
@@ -3444,24 +3448,6 @@ function machineView:parseFX_ini(fxTable, list, name)
           local value = v:sub(idx+1,-1)
           fxTable[currentFolder][key] = value
         end
-        
-        
-        --subFolder = v:sub(idx+1,-1)
-        --[[local idx = v:find("=", 1, true)
-        if ( idx ) then
-          local subFolder = v:sub(idx+1,-1)
-          local file = v:sub(1,idx-1)
-
-          if ( list[file] ) then
-            --print("Found and assigned to "..currentFolder .. "/" .. subFolder)
-            if ( not fxTable[currentFolder][subFolder] ) then
-              fxTable[currentFolder][subFolder] = {}
-            end
-            local cTable = fxTable[currentFolder][subFolder]
-            cTable[#cTable+1] = file
-          end
-        end
-        ]]--
       end
     end
 
