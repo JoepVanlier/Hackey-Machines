@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.51
+@version 0.52
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,10 @@
 
 --[[
  * Changelog:
+ * v0.52 (2018-11-17)
+   + Added extra F9 option for showing only routing of selected tracks.
+   + Get closer to native colors.
+   + Added word-wrapping for machine names.
  * v0.51 (2018-10-19)
    + Show signal cable as active when manipulating signal
    + Make doubleclick focus on first effect
@@ -159,7 +163,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.51"
+scriptName = "Hackey Machines v0.52"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -284,7 +288,7 @@ help = {
   {"F6", "Toggle snap to grid (off, on/non-visible, on/visible)"},
   {"F7", "Snap everything to grid"},
   {"F8", "Weird stuff"},
-  {"F9", "Hide wires"},  
+  {"F9", "Hide wires / Show only wires of selected tracks / Show wires"},  
   {"F10", "Open FX editing list (windows only)"},
   {"F11", "Toggle use of track colors"},    
   {"F12", "Toggle key layout (0 = default, 1 = RMB drag, MMB insert machine)"},
@@ -571,6 +575,47 @@ function file_exists(name)
    if f~=nil then io.close(f) return true else return false end
 end
 
+local function wrapPrint(str, maxlen, maxline)
+  local done
+  local cpos = 1
+  local lastLineStart = 1
+  local lastWordStart = 1
+  local maxline = maxline or 1
+  local line = 1
+  local outStr = ''
+  str = str .. ' ';
+  while( not done ) do
+    local cchar = str:sub(cpos, cpos)
+    if ( cchar == " " ) then
+      local cstr = str:sub(lastLineStart, cpos)
+      local mx = gfx.measurestr( cstr )
+      if ( mx > maxlen ) then
+        if ( lastLineStart == lastWordStart ) then
+          done = true
+        else
+          outStr = str:sub(lastLineStart, lastWordStart) .. '\n'
+          lastLineStart = lastWordStart
+          line = line + 1
+          if ( line > maxline ) then
+            done = true;
+          end
+        end
+      else
+        lastWordStart = cpos
+      end
+    end
+    cpos = cpos + 1
+       
+    if ( cpos > str:len() ) then
+      done = true
+    end
+  end
+
+  outStr = outStr .. str:sub(lastLineStart, -1)
+  
+  return outStr, line
+end
+
 local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden, selected, playColor, selectionColor, rec )
   local gfx = gfx
   
@@ -578,7 +623,7 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   local xma = xtrafo( x + 0.5*w )
   local ymi = ytrafo( y - 0.5*h )
   local yma = ytrafo( y + 0.5*h )
-  local w = zoom * w
+  local w = xma - xmi --zoom * w
   local h = zoom * h
 
   gfx.set( 0.0, 0.0, 0.0, 0.8 )
@@ -642,25 +687,27 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
     gfx.set( table.unpack(fg) )
   end
   
-  gfx.setfont(1, "Lucida Grande", math.floor(20*zoom))
-  local wc, hc
-  if ( name == "" ) then
-    wc, hc = gfx.measurestr(".")
-  else
-    wc, hc = gfx.measurestr(name)
-  end
+  gfx.setfont(1, "Lucida Grande", math.floor(19*zoom))
+  
   if ( rnc ) then
     gfx.set( table.unpack(rnc) )
     local tc = 3*reaper.time_precise()
+    local extraChar = ''
     if ( tc - 2*math.floor(tc/2) > 1 ) then
-      gfx.x = xtrafo(x)+0.5*wc
-      gfx.y = ytrafo(y)-0.5*hc
-      gfx.drawstr('_')
+      extraChar = '_'
     end
+    local wc, hy = gfx.measurestr( name )
+    local wc2 = gfx.measurestr( '_' )
+    gfx.x = xtrafo(x) - 0.5*wc + 2 - .5*wc2
+    gfx.y = ytrafo(y) - 0.5*hy
+    gfx.drawstr( name .. extraChar, 1 )
+  else
+    local wc, hc, lines
+    name, lines = wrapPrint(name, w-4)
+    gfx.x = xtrafo(x) - 0.5*w + 4
+    gfx.y = ytrafo(y) - 0.18*h - math.max(0,(lines-1))*0.09*h
+    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
   end
-  gfx.x = xtrafo(x)-0.5*wc
-  gfx.y = ytrafo(y)-0.5*hc
-  gfx.drawstr( name, 1, 1 )  
   
   w2 = w2*zoom
   h2 = h2*zoom
@@ -1476,14 +1523,18 @@ function sink.create(viewer, track, idx, sinkData)
     
     if ( this.hidden == 0 or (showHidden == 1) ) then
       local indicatorPoly = self.indicatorPoly
-      wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[2][1], indicatorPoly[2][2] )
-      wgfx.line( indicatorPoly[2][1], indicatorPoly[2][2], indicatorPoly[3][1], indicatorPoly[3][2] )
-      wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[3][1], indicatorPoly[3][2] )
+      if ( hideWires == 0 ) then
+        wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[2][1], indicatorPoly[2][2] )
+        wgfx.line( indicatorPoly[2][1], indicatorPoly[2][2], indicatorPoly[3][1], indicatorPoly[3][2] )
+        wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[3][1], indicatorPoly[3][2] )
+      end
 
       if ( self.accent or self.ctrls ) then
         wgfx.thickline( this.x, this.y, other.x, other.y, .75, 5, colors.selectionColor )
       else
-        wgfx.line( this.x, this.y, other.x, other.y )
+        if ( hideWires == 0 ) then
+          wgfx.line( this.x, this.y, other.x, other.y )
+        end
       end
     end
   end
@@ -1550,13 +1601,12 @@ function block.create(track, x, y, config, viewer)
     if ( useColors == 1 ) then
       local col = reaper.GetTrackColor(self.track)
       if ( col > 0.1 ) then
-        local o = 0.3
-        local r = math.floor((col % 2^24) / 2^16) / 255
-        local g = math.floor((col % 2^16) / 2^8) / 255
-        local b = col % 2^8 / 255
-        BG[1] = BG[1] * (1-o) + o * r
-        BG[2] = BG[2] * (1-o) + o * g
-        BG[3] = BG[3] * (1-o) + o * b
+        local o = 0.9        
+        local r, g, b = reaper.ColorFromNative(col)
+        BG[1] = (r/256)*o + BG[1]*(1-o)
+        BG[2] = (g/256)*o + BG[2]*(1-o)
+        BG[3] = (b/256)*o + BG[3]*(1-o)
+        BG[4] = .8
       end
     end
     
@@ -1990,7 +2040,7 @@ function block.create(track, x, y, config, viewer)
       end
       self.viewer:callScript(hackeyTrackey)
     elseif inputs('trackfx', doubleClick) and self:checkHit( x, y ) then
-    
+      reaper.TrackFX_SetOpen(self.track, 0, true)    
       reaper.TrackFX_SetOpen(self.track, 0, true)
     end 
    
@@ -2587,22 +2637,36 @@ end
 
 function machineView:drawHighlightedSignal(mx, my)
   local over
-  for i,v in pairs( self.tracks ) do
-    if v:checkHit( mx, my ) then
-      over = v
-      break;
+  if ( hideWires == 0 ) then
+    for i,v in pairs( self.tracks ) do
+      if v:checkHit( mx, my ) then
+        over = v
+        break;
+      end
     end
-  end
-  if ( self.lastOver ~= over ) then
+    if ( self.lastOver ~= over ) then
+      for i,v in pairs(self.tracks) do
+        for j,w in pairs(v.sinks) do
+          w.accent = nil
+        end
+      end
+      -- Trace the signal
+      if ( over ) then
+        self:highlightRecursively(over)
+      end
+    end
+  else
     for i,v in pairs(self.tracks) do
       for j,w in pairs(v.sinks) do
         w.accent = nil
       end
     end
-    -- Trace the signal
-    if ( over ) then
-      self:highlightRecursively(over)
-    end  
+    -- Trace the selected ones
+    for i,v in pairs(self.tracks) do
+      if v.selected == 1 then
+        self:highlightRecursively(v)
+      end
+    end
   end
   self.lastOver = over
 end
@@ -3070,7 +3134,19 @@ local function updateLoop()
       elseif ( inputs('sfx') ) then
         SFX = 1 - SFX
       elseif ( inputs('hideWires') ) then
-        hideWires = 1 - hideWires
+        hideWires = hideWires + 1
+        if ( hideWires > 2 ) then
+          hideWires = 0
+        end
+        if ( hideWires == 0 ) then
+          self:printMessage( "Showing wires" )
+        end
+        if ( hideWires == 1 ) then
+          self:printMessage( "Hiding wires" )
+        end
+        if ( hideWires == 2 ) then
+          self:printMessage( "Showing wires of selected tracks only" )
+        end
       elseif ( inputs('customizeMachines') ) then
         launchTextEditor( getFXListFn() )
       end
@@ -3657,6 +3733,8 @@ function machineView:loadWindowPosition()
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "useColors")  
   if ( ok ) then showC = tonumber( v ) end    
   useColors = showC or useColors
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "hideWires")  
+  if ( ok ) then hideWires = tonumber( v ) or hideWires end
   
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "gfxw")  
   if ( ok ) then gfxw = tonumber( v ) end
@@ -3708,6 +3786,7 @@ function machineView:storePositions()
   reaper.SetProjExtState(0, "MVJV001", "night", tostring(night))
   reaper.SetProjExtState(0, "MVJV001", "grid", tostring(grid))  
   reaper.SetProjExtState(0, "MVJV001", "useColors", tostring(useColors))
+  reaper.SetProjExtState(0, "MVJV001", "hideWires", tostring(hideWires))
 end
 
 function machineView:loadMachinePosition(GUID)
