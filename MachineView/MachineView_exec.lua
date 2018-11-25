@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.52
+@version 0.53
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,12 @@
 
 --[[
  * Changelog:
+ * v0.53 (2018-11-25)
+   + Added text outline to help make text more readable.
+   + Fix colorbleed.
+   + Added outer solo button.
+   + Changed wire showing behaviour for mode 3.
+   + Don't allow clicking invisible connectors.
  * v0.52 (2018-11-17)
    + Added extra F9 option for showing only routing of selected tracks.
    + Get closer to native colors.
@@ -163,7 +169,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.52"
+scriptName = "Hackey Machines v0.53"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -630,7 +636,7 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   gfx.rect(xmi, ymi, w, h+1 )
     
   gfx.set( table.unpack(bg) )
-  gfx.rect(xmi, ymi, w, h+3 )
+  gfx.rect(xmi, ymi, w, h )
 
   if ( showSignals > 0 ) then
     gfx.set( table.unpack( fgData ) )
@@ -704,8 +710,30 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   else
     local wc, hc, lines
     name, lines = wrapPrint(name, w-4)
-    gfx.x = xtrafo(x) - 0.5*w + 4
-    gfx.y = ytrafo(y) - 0.18*h - math.max(0,(lines-1))*0.09*h
+
+    local xl = xtrafo(x) - 0.5*w + 4  
+    local yl = ytrafo(y) - 0.18*h - math.max(0,(lines-1))*0.09*h
+    if ( fg[1] > 0.5 ) then
+      gfx.set( 0, 0, 0, .5 )
+    else
+      gfx.set( 1, 1, 1, .5 )    
+    end
+    gfx.x = xl - 1
+    gfx.y = yl - 1
+    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+    gfx.x = xl + 1
+    gfx.y = yl + 1
+    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+    gfx.x = xl - 1
+    gfx.y = yl + 1
+    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+    gfx.x = xl + 1
+    gfx.y = yl - 1
+    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+    
+    gfx.set( table.unpack(fg) )
+    gfx.x = xl
+    gfx.y = yl
     gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
   end
   
@@ -1512,6 +1540,10 @@ function sink.create(viewer, track, idx, sinkData)
     self.polyCenter     = calcCenter(self.indicatorPoly)
   end
   
+  self.arrowVisible = function(self)
+    return hideWires == 0 or (hideWires == 2 and self.accent )
+  end
+  
   self.draw = function(self)
     if ( hideWires == 1 ) then
       return
@@ -1523,7 +1555,7 @@ function sink.create(viewer, track, idx, sinkData)
     
     if ( this.hidden == 0 or (showHidden == 1) ) then
       local indicatorPoly = self.indicatorPoly
-      if ( hideWires == 0 ) then
+      if ( self:arrowVisible() ) then
         wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[2][1], indicatorPoly[2][2] )
         wgfx.line( indicatorPoly[2][1], indicatorPoly[2][2], indicatorPoly[3][1], indicatorPoly[3][2] )
         wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[3][1], indicatorPoly[3][2] )
@@ -1546,7 +1578,9 @@ function sink.create(viewer, track, idx, sinkData)
   end
     
   self.checkHit = function(self, x, y)
-    return inTriangle( self.indicatorPoly, {x,y} )
+    if ( self:arrowVisible() ) then
+      return inTriangle( self.indicatorPoly, {x,y} )
+    end
   end
     
   self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
@@ -2015,8 +2049,13 @@ function block.create(track, x, y, config, viewer)
     if ( inputs('openMachineControl', doubleClick) ) then  
       if ( self:checkHit( x, y ) ) then
         if ( not self.ctrls ) then
-          self.ctrls = box_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.track, self )
-          return true
+          if ( self:checkMute( x, y ) ) then
+            self:toggleSolo()
+            return true
+          else
+            self.ctrls = box_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.track, self )
+            return true
+          end
         end
       end
     end
