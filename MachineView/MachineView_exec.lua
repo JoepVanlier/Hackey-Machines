@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.53
+@version 0.54
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.54 (2018-11-26)
+   + Added vertical layout mode (CTRL+F7).
+   + Updated FoxAsteria keymap.
  * v0.53 (2018-11-25)
    + Added text outline to help make text more readable.
    + Fix colorbleed.
@@ -169,7 +172,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.53"
+scriptName = "Hackey Machines v0.54"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -192,6 +195,11 @@ machineView.config.muteHeight = 7
 machineView.config.keymap = 0
 machineView.config.maxkeymap = 1
 machineView.config.msgTime = 2.5
+
+-- Settings for the linear spacing algorithm
+machineView.linearyspacing = 75
+machineView.linearyspacingtop = 100
+machineView.linearxspacing = 250
 
 messages = {}
 
@@ -248,64 +256,124 @@ local function initializeKeys( keymap )
   keys.night              = {        2,    2,    2,    2,     0,     0,      0,      26165 }        -- toggle night mode (F5)
   keys.grid               = {        2,    2,    2,    2,     0,     0,      0,      26166 }        -- toggle grid (F6)
   keys.snapall            = {        2,    2,    2,    2,     0,     0,      0,      26167 }        -- snap all to grid (F7)
+  keys.linear             = {        2,    2,    2,    2,     1,     0,      0,      26167 }        -- force linear layout (ctrl + F7)
   keys.sfx                = {        2,    2,    2,    2,     0,     0,      0,      26168 }        -- surprise! (F8)
   keys.hideWires          = {        2,    2,    2,    2,     0,     0,      0,      26169 }        -- hide wires (F9)
   keys.customizeMachines  = {        2,    2,    2,    2,     0,     0,      0,      6697264 }      -- customize machine list (F10)
   keys.toggleTrackColors  = {        2,    2,    2,    2,     0,     0,      0,      6697265 }      -- toggle track colors (F11)
   keys.toggleKeymap       = {        2,    2,    2,    2,     0,     0,      0,      6697266 }      -- toggle key map (F12)  
   
+  help = {
+    {"Shift drag machine", "Connect machines"},    
+    {"Left click arrow", "Volume, panning, channel and disconnect controls"},
+    {"Drag on dial", "Change setting"},
+    {"Ctrl + drag on dial", "Change setting (5x slower)"},
+    {"Shift + drag on dial", "Change setting (10x slower)"},
+    {"Shift + Ctrl + drag on dial", "Change setting (50x slower)"},
+    {"Ctrl click machine", "Select multiple machines"},
+    {"Right click machine", "Solo, mute, rename, duplicate or remove machine"},
+    {"Right click background", "Insert machine from user menu (F10 to customize)"},
+    {"Shift + right click background", "Insert machine from reaper wide categories"},  
+    {"Middle click object", "Delete signal cable or machine"},
+    {"Middle click drag", "Shift field of view"},
+    {"Scrollwheel", "Adjust zoom level"},
+    {"Page up", "Minimal Zoom"},
+    {"Page down", "Default Zoom"},
+    {"Ctrl + Scrollwheel", "Adjust zoom level (5x slower)"},
+    {"Shift + Scrollwheel", "Adjust zoom level (10x slower)"},  
+    {"Double click machine", "Open FX list"},
+    {"Alt + Double click machine", "Open machine VST GUI"},  
+    {"Ctrl + Double click machine", "Open FX list with MPL Wiredchain (needs to be installed)"},    
+    {"Shift + Double click machine", "Open Hackey Trackey on that track (if MIDI data is available)"},
+    {"Leftclick drag", "Select multiple machines"},
+    {"Ctrl + Enter", "Simulate forces between machines"},
+    {"Del", "Delete machine"},
+    {"H", "Hide machine"},
+    {"F1", "Help"},
+    {"F2", "Toggle signal visualization"},
+    {"F3", "Toggle showing track names versus machine names"},
+    {"F4", "Toggle showing hidden machines"},
+    {"F5", "Toggle night mode"},
+    {"F6", "Toggle snap to grid (off, on/non-visible, on/visible)"},
+    {"F7", "Snap everything to grid"},
+    {"Ctrl + F7", "Reset layout to linear layout based on track color"},    
+    {"F8", "Weird stuff"},
+    {"F9", "Hide wires / Show only wires of selected tracks / Show wires"},  
+    {"F10", "Open FX editing list (windows only)"},
+    {"F11", "Toggle use of track colors"},    
+    {"F12", "Toggle key layout (0 = default, 1 = RMB drag, MMB insert machine)"},
+    {"CTRL + H", "Hide wires"},
+    {"CTRL + R", "Set selection to record"},
+    {"CTRL + S", "Save"},
+    {"CTRL + Z", "Undo"},
+    {"CTRL + SHIFT + Z", "Redo"},
+    {"ESCAPE", "Close floating windows"},
+    {"DOUBLE ESCAPE", "Close window"},  
+  }  
+  
   if ( keymap == 1 ) then
+    keys.openSinkControl = { 1, 2, 2, 2, 2, 0, 2, nil } -- lmb
+    keys.openSinkControl2 = { 2, 1, 2, 2, 2, 0, 2, nil } -- rmb
+    keys.deleteSink = { 1, 0, 0, 2, 2, 1, 2, nil } -- alt + lmb
+    keys.deleteMachine = { 1, 0, 0, 1, 1, 1, 2, nil } -- ctrl + alt + doubleclick
+    keys.sfx = { 2, 2, 2, 2, 0, 0, 0, 26169 } -- surprise! (F9)
+    keys.hideWires = { 2, 2, 2, 2, 0, 0, 0, 26168 } -- hide wires (F8)
+    keys.toggleTrackColors = { 2, 2, 2, 2, 0, 0, 0, 6697264 } -- toggle track colors (F10)
+    keys.customizeMachines = { 2, 2, 2, 2, 0, 0, 0, 6697265 } -- customize machine list (F11)
+    keys.toggleKeymap = { 2, 2, 2, 2, 0, 0, 0, 6697266 } -- toggle key map (F12)
+    
     keys.addMachine         = {        2,    2,    1,    2,     2,     2,      2,      nil }    -- add machine (mmb)
     keys.drag               = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- drag field of view (rmb)
+    
+    help = {
+      {"Shift drag machine", "Connect machines"},    
+      {"Left click arrow", "Volume, panning, channel and disconnect controls"},
+      {"Drag on dial", "Change setting"},
+      {"Ctrl + drag on dial", "Change setting (5x slower)"},
+      {"Shift + drag on dial", "Change setting (10x slower)"},
+      {"Shift + Ctrl + drag on dial", "Change setting (50x slower)"},
+      {"Ctrl click machine", "Select multiple machines"},
+      {"Right click machine", "Solo, mute, rename, duplicate or remove machine"},
+      {"Right click background", "Insert machine from user menu (F10 to customize)"},
+      {"Shift + right click background", "Insert machine from reaper wide categories"},  
+      {"Alt + left click", "Delete signal cable or machine"},
+      {"Middle click drag", "Shift field of view"},
+      {"Scrollwheel", "Adjust zoom level"},
+      {"Page up", "Minimal Zoom"},
+      {"Page down", "Default Zoom"},
+      {"Ctrl + Scrollwheel", "Adjust zoom level (5x slower)"},
+      {"Shift + Scrollwheel", "Adjust zoom level (10x slower)"},  
+      {"Double click machine", "Open FX list"},
+      {"Alt + Double click machine", "Open machine VST GUI"},  
+      {"Ctrl + Double click machine", "Open FX list with MPL Wiredchain (needs to be installed)"},    
+      {"Shift + Double click machine", "Open Hackey Trackey on that track (if MIDI data is available)"},
+      {"Leftclick drag", "Select multiple machines"},
+      {"Ctrl + Enter", "Simulate forces between machines"},
+      {"Ctrl + Alt + Doubleclick", "Delete machine"},
+      {"H", "Hide machine"},
+      {"F1", "Help"},
+      {"F2", "Toggle signal visualization"},
+      {"F3", "Toggle showing track names versus machine names"},
+      {"F4", "Toggle showing hidden machines"},
+      {"F5", "Toggle night mode"},
+      {"F6", "Toggle snap to grid (off, on/non-visible, on/visible)"},
+      {"F7", "Snap everything to grid"},
+      {"F8", "Hide wires / Show only wires of selected tracks / Show wires"},  
+      {"F9", "Weird stuff"},
+      {"F10", "Toggle use of track colors"},
+      {"F11", "Open FX editing list (windows only)"},
+      {"F12", "Toggle key layout (0 = default, 1 = RMB drag, MMB insert machine)"},
+      {"CTRL + H", "Hide wires"},
+      {"CTRL + R", "Set selection to record"},
+      {"CTRL + S", "Save"},
+      {"CTRL + Z", "Undo"},
+      {"CTRL + SHIFT + Z", "Redo"},
+      {"ESCAPE", "Close floating windows"},
+      {"DOUBLE ESCAPE", "Close window"},  
+    }
+    
   end
 end
-
-help = {
-  {"Shift drag machine", "Connect machines"},    
-  {"Left click arrow", "Volume, panning, channel and disconnect controls"},
-  {"Drag on dial", "Change setting"},
-  {"Ctrl + drag on dial", "Change setting (5x slower)"},
-  {"Shift + drag on dial", "Change setting (10x slower)"},
-  {"Shift + Ctrl + drag on dial", "Change setting (50x slower)"},
-  {"Ctrl click machine", "Select multiple machines"},
-  {"Right click machine", "Solo, mute, rename, duplicate or remove machine"},
-  {"Right click background", "Insert machine from user menu (F10 to customize)"},
-  {"Shift + right click background", "Insert machine from reaper wide categories"},  
-  {"Middle click object", "Delete signal cable or machine"},
-  {"Middle click drag", "Shift field of view"},
-  {"Scrollwheel", "Adjust zoom level"},
-  {"Page up", "Minimal Zoom"},
-  {"Page down", "Default Zoom"},
-  {"Ctrl + Scrollwheel", "Adjust zoom level (5x slower)"},
-  {"Shift + Scrollwheel", "Adjust zoom level (10x slower)"},  
-  {"Double click machine", "Open FX list"},
-  {"Alt + Double click machine", "Open machine VST GUI"},  
-  {"Ctrl + Double click machine", "Open FX list with MPL Wiredchain (needs to be installed)"},    
-  {"Shift + Double click machine", "Open Hackey Trackey on that track (if MIDI data is available)"},
-  {"Leftclick drag", "Select multiple machines"},
-  {"Ctrl + Enter", "Simulate forces between machines"},
-  {"Del", "Delete machine"},
-  {"H", "Hide machine"},
-  {"F1", "Help"},
-  {"F2", "Toggle signal visualization"},
-  {"F3", "Toggle showing track names versus machine names"},
-  {"F4", "Toggle showing hidden machines"},
-  {"F5", "Toggle night mode"},
-  {"F6", "Toggle snap to grid (off, on/non-visible, on/visible)"},
-  {"F7", "Snap everything to grid"},
-  {"F8", "Weird stuff"},
-  {"F9", "Hide wires / Show only wires of selected tracks / Show wires"},  
-  {"F10", "Open FX editing list (windows only)"},
-  {"F11", "Toggle use of track colors"},    
-  {"F12", "Toggle key layout (0 = default, 1 = RMB drag, MMB insert machine)"},
-  {"CTRL + H", "Hide wires"},
-  {"CTRL + R", "Set selection to record"},
-  {"CTRL + S", "Save"},
-  {"CTRL + Z", "Undo"},
-  {"CTRL + SHIFT + Z", "Redo"},
-  {"ESCAPE", "Close floating windows"},
-  {"DOUBLE ESCAPE", "Close window"},  
-}
 
 local lmb, rmb, mmb, ctrl, alt, shift
 local function updateInputs()
@@ -3126,6 +3194,8 @@ local function updateLoop()
         end
         machineView:updateNames()
         self:storePositions()
+      elseif ( inputs('linear') ) then
+        self:forceLinear()
       elseif ( inputs('showHidden') ) then
         showHidden = 1 - showHidden
         if ( showHidden == 1 ) then
@@ -3323,6 +3393,52 @@ function machineView:loadTracks()
       error( 'Failed loading tracks during sink update loop' );
     end
   end
+end
+
+function machineView:forceLinear()
+  local groups = {}
+  local master
+  local nGroups = 0
+  local maxLen = 0
+  for i,v in pairs( self.tracks ) do
+    if ( v.name ~= "MASTER" ) then
+      local c = reaper.GetTrackColor(v.track)
+      if ( not groups[c] ) then
+        groups[c] = {}
+        groups[c].tracks = {}
+        nGroups = nGroups + 1
+      end
+      if ( string.match(v.name, "VCA") ) then
+        groups[c].master = v
+      end
+      groups[c].tracks[#groups[c].tracks + 1] = v
+      if #groups[c].tracks > maxLen then
+        maxLen = #groups[c].tracks
+      end
+    else
+      master = v
+    end
+  end
+    
+  local x = - math.floor(nGroups*0.5) * 150
+  for i,grp in pairs( groups ) do
+    local y = 0
+    if ( grp.master ) then
+      grp.master.x = x
+      grp.master.y = y
+      y = y + self.linearyspacingtop
+    end    
+    for j,trk in pairs( grp.tracks ) do
+      if ( trk ~= grp.master ) then
+        trk.x = x
+        trk.y = y
+        y = y + self.linearyspacing
+      end
+    end
+    x = x + self.linearxspacing
+  end
+  master.x = x-self.linearxspacing
+  master.y = maxLen * self.linearyspacingtop*2
 end
 
 function machineView:distribute(onlyFree)
