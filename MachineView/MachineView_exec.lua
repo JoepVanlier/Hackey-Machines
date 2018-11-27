@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.54
+@version 0.55
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,13 @@
 
 --[[
  * Changelog:
+ * v0.55 (2018-11-27)
+   + Fixed mute clicking region.
+   + Fixed mute rapid toggle problem.
+   + Show volume of sum of left and right channels rather than just left.
+   + Show estimate of the audio panning at bottom of track.   
+   + Option to follow last clicked track in TCP.
+   + Option to follow last clicked track in Mixer.
  * v0.54 (2018-11-26)
    + Added vertical layout mode (CTRL+F7).
    + Updated FoxAsteria keymap.
@@ -172,7 +179,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.54"
+scriptName = "Hackey Machines v0.55"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -211,7 +218,8 @@ templates.extension = ".RTrackTemplate"
 -- It is then set to 2 at the start of the next the cycle.
 -- If it 2 by the end of that cycle, we assume the user stopped moving the objects.
 machineView.blocksMoving = 0
-
+moveTCP = 0
+moveMixer = 1
 recCornerSize = .2
 
 local keys = {}
@@ -239,6 +247,8 @@ local function initializeKeys( keymap )
   keys.drag               = {        2,    2,    1,    2,     2,     2,      2,      nil }    -- drag field of view (mmb)
   keys.addMachine         = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- add machine (rmb)
   
+  keys.movetcp            = {        2,    2,    2,    2,     2,     2,      2,      116 }          -- toggle move tcp
+  keys.movemixer          = {        2,    2,    2,    2,     2,     2,      2,      109 }          -- toggle move mixer
   keys.delete             = {        2,    2,    2,    2,     0,     0,      0,      6579564.0 }    -- delete machines (del)
   keys.minzoom            = {        2,    2,    2,    2,     0,     0,      0,      1885828464 }   -- minzoom (pgup)
   keys.maxzoom            = {        2,    2,    2,    2,     0,     0,      0,      1885824110 }   -- maxzoom (pgdown)
@@ -289,6 +299,8 @@ local function initializeKeys( keymap )
     {"Ctrl + Enter", "Simulate forces between machines"},
     {"Del", "Delete machine"},
     {"H", "Hide machine"},
+    {"T", "Toggle move TCP upon selection"},
+    {"M", "Toggle move mixer upon selection"},
     {"F1", "Help"},
     {"F2", "Toggle signal visualization"},
     {"F3", "Toggle showing track names versus machine names"},
@@ -351,6 +363,8 @@ local function initializeKeys( keymap )
       {"Ctrl + Enter", "Simulate forces between machines"},
       {"Ctrl + Alt + Doubleclick", "Delete machine"},
       {"H", "Hide machine"},
+      {"T", "Toggle move TCP upon selection"},
+      {"M", "Toggle move mixer upon selection"},    
       {"F1", "Help"},
       {"F2", "Toggle signal visualization"},
       {"F3", "Toggle showing track names versus machine names"},
@@ -690,7 +704,7 @@ local function wrapPrint(str, maxlen, maxline)
   return outStr, line
 end
 
-local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden, selected, playColor, selectionColor, rec )
+local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden, selected, playColor, selectionColor, rec, center )
   local gfx = gfx
   
   local xmi = xtrafo( x - 0.5*w )
@@ -729,6 +743,13 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
         loc = 1
       end
     end
+    
+    if ( center ~= 0.5 ) then
+      local xc = xmi + center * w
+      local pansize = 7 * zoom
+      gfx.a = 0.7*gfx.a
+      gfx.triangle(math.max(xmi-1,xc-pansize), yma, xc, yma-pansize, math.min(xma+1,xc+pansize), yma)
+    end
   end
 
   if ( hidden == 1 ) then
@@ -745,7 +766,7 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   gfx.line(xma+1, ymi+1, xma+1, yma+1)
   gfx.line(xmi+2, yma+2, xma+2, yma+2)
   gfx.line(xma+2, ymi+2, xma+2, yma+2)    
-  
+
   local c = recCornerSize
   if ( rec ) then
     gfx.set( table.unpack( rec ) )
@@ -812,7 +833,7 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   local ymi2 = ymi + yo
   local yma2 = ymi + yo + h2
   gfx.set( table.unpack(playColor) ) 
-  gfx.rect(xmi2, ymi2, w2, h2 + 1 )
+  gfx.rect(xmi2, ymi2, w2 + 1, h2 + 1 )
   
   gfx.set( table.unpack(fg) )    
   gfx.line(xmi2, ymi2, xma2, ymi2)
@@ -1695,6 +1716,8 @@ function block.create(track, x, y, config, viewer)
   self.hidden = 0
   self.record = 0
   self.renaming = 0
+  self.lavg = 0
+  self.ravg = 0
   
   self.loadColors = function(self)
     local FG = { colors.textcolor[1], colors.textcolor[2], colors.textcolor[3], colors.textcolor[4] }
@@ -1868,7 +1891,9 @@ function block.create(track, x, y, config, viewer)
       end
   
       -- Calculate amplitude
-      local peak = 8.6562*math.log(reaper.Track_GetPeakInfo(self.track, 0, 0))
+      local peakleft = reaper.Track_GetPeakInfo(self.track, 0)
+      local peakright = reaper.Track_GetPeakInfo(self.track, 1)
+      local peak = 8.6562*math.log(.5 * (peakleft + peakright))
       local noiseFloor = 36
       if ( peak > 0 ) then
         peak = 0;
@@ -1885,6 +1910,17 @@ function block.create(track, x, y, config, viewer)
         if ( self.dataloc > self.dataN ) then
           self.dataloc = 1
         end
+      end
+      
+      self.lavg = self.lavg * 0.5 + peakleft
+      self.ravg = self.ravg * 0.5 + peakright
+      local sum = (self.lavg + self.ravg)
+      local center
+      if ( sum > 0.01 ) then
+        local isum = .5 / sum
+        center = .5 - isum * self.lavg + isum * self.ravg
+      else
+        center = 0.5
       end
       
       -- Color handling for selection and renaming
@@ -1916,9 +1952,9 @@ function block.create(track, x, y, config, viewer)
       
       -- Draw routine
       if ( muted == 1 or blockedBySolo ) then
-        box( self.x, self.y, self.w, self.h, str, self.line, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec )
+        box( self.x, self.y, self.w, self.h, str, self.line, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec, center )
       else
-        box( self.x, self.y, self.w, self.h, self.name, self.line, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec )
+        box( self.x, self.y, self.w, self.h, self.name, self.line, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec, center )
       end
     end
   end
@@ -1973,6 +2009,37 @@ function block.create(track, x, y, config, viewer)
     elseif ( self.selected == 0 ) then
       reaper.SetMediaTrackInfo_Value(reaper.GetMasterTrack(0), "I_SELECTED", 0)            
       reaper.SetOnlyTrackSelected(track)
+    end
+    if ( moveMixer == 1 ) then
+      -- Try to see if it moves us left. If so, do it. Otherwise, leave it.
+      if ( reaper.IsTrackVisible(self.track, 1) ) then
+        reaper.SetMixerScroll(self.track)
+      end
+    end
+    if ( moveTCP == 1 ) then
+      if ( reaper.IsTrackVisible(self.track, 0) ) then     
+        local ctrk = 0
+        local me
+        for i=0,reaper.CountTracks()-1 do
+          if ( reaper.IsTrackVisible(reaper.GetTrack(0,i), 0) ) then
+            if ( self.track == reaper.GetTrack(0,i) ) then
+              me = ctrk
+            end
+            ctrk = ctrk + 1;
+          end
+        end
+        if ( me ) then
+          reaper.PreventUIRefresh(1)
+           for i=0,reaper.CountTracks()-1 do
+             reaper.CSurf_OnArrow(0, false)
+           end
+           for i=1,me do
+             reaper.CSurf_OnArrow(1, false)
+           end
+           reaper.PreventUIRefresh(-1)
+           reaper.UpdateArrange()
+        end
+      end
     end
     self.viewer:updateSelection()
   end
@@ -2118,7 +2185,10 @@ function block.create(track, x, y, config, viewer)
       if ( self:checkHit( x, y ) ) then
         if ( not self.ctrls ) then
           if ( self:checkMute( x, y ) ) then
-            self:toggleSolo()
+            if ( not self.lastToggleSolo ) then
+              self:toggleSolo()
+              self.lastToggleSolo = 1
+            end
             return true
           else
             self.ctrls = box_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.track, self )
@@ -2126,6 +2196,8 @@ function block.create(track, x, y, config, viewer)
           end
         end
       end
+    else
+      self.lastToggleSolo = nil
     end
     
     if ( inputs('deleteMachine', doubleClick) and self:checkHit( x, y ) ) then
@@ -2247,11 +2319,11 @@ function block.create(track, x, y, config, viewer)
     if ( not x or not y ) then
       return false
     end
-  
-    local xmi = self.x - .5 * self.w + self.xo
-    local xma = self.x - .5 * self.w + self.xo + self.w2
-    local ymi = self.y - .5 * self.h + self.yo
-    local yma = self.y - .5 * self.h + self.yo + self.h2
+
+    local xmi = self.x - .5 * self.w + self.xo/zoom
+    local xma = self.x - .5 * self.w + self.xo/zoom + self.w2
+    local ymi = self.y - .5 * self.h + self.yo/zoom
+    local yma = self.y - .5 * self.h + self.yo/zoom + self.h2
     
     if ( x > xmi and x < xma ) then
       if ( y > ymi and y < yma ) then
@@ -2896,7 +2968,7 @@ local function updateLoop()
   reaper.PreventUIRefresh(-1)
   prevChar = lastChar
   lastChar = gfx.getchar()
- 
+
   -- Some machine is being renamed (lock everything control related while this is occurring)
   if ( self.help ) then
     local wcmax = 0
@@ -3142,7 +3214,7 @@ local function updateLoop()
       end
       self.lastCloseAttempt = ctime
     end
-    
+
     -- Maintain the loop until the window is closed or escape is pressed
     if ( lastChar ~= -1 ) then
       reaper.defer(updateLoop)
@@ -3258,6 +3330,20 @@ local function updateLoop()
         end
       elseif ( inputs('customizeMachines') ) then
         launchTextEditor( getFXListFn() )
+      elseif ( inputs('movetcp') ) then
+        moveTCP = 1 - moveTCP;
+        if ( moveTCP == 1 ) then
+          self:printMessage( "Move TCP upon selection change" )
+        else
+          self:printMessage( "Don't move TCP upon selection change" )
+        end
+      elseif ( inputs('movemixer') ) then
+        moveMixer = 1 - moveMixer;
+        if ( moveMixer == 1 ) then
+          self:printMessage( "Move mixer upon selection change" )
+        else
+          self:printMessage( "Don't move mixer upon selection change" )
+        end
       end
     else
       self:terminate()
@@ -3902,12 +3988,20 @@ function machineView:loadWindowPosition()
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "d")  
   if ( ok ) then d = tonumber( v ) end
   
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "moveTCP")
+  if ( ok ) then move = tonumber( v ) end
+  
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "moveMixer")
+  if ( ok ) then move2 = tonumber( v ) end
+  
   origin[1]     = ox or origin[1]
   origin[2]     = oy or origin[2]
   zoom          = z or zoom
   showSignals   = showS or showSignals
   showTrackName = showT or showTrackName
   showHidden    = showH or showHidden  
+  moveTCP       = move or moveTCP
+  moveMixer     = move2 or moveMixer
   
   self.config.x      = x    or self.config.x
   self.config.y      = y    or self.config.y
@@ -3935,6 +4029,8 @@ function machineView:storePositions()
   reaper.SetProjExtState(0, "MVJV001", "y", tostring(y))
   reaper.SetProjExtState(0, "MVJV001", "d", tostring(d))  
   
+  reaper.SetProjExtState(0, "MVJV001", "moveTCP", tostring(moveTCP))  
+  reaper.SetProjExtState(0, "MVJV001", "moveMixer", tostring(moveMixer))    
   reaper.SetProjExtState(0, "MVJV001", "showSignals", tostring(showSignals))
   reaper.SetProjExtState(0, "MVJV001", "showTrackName", tostring(showTrackName))
   reaper.SetProjExtState(0, "MVJV001", "showHidden", tostring(showHidden))  
