@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.55
+@version 0.56
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,12 @@
 
 --[[
  * Changelog:
+ * v0.56 (2018-11-28)
+   + Added fit to screen (CTRL + F5).
+   + Switched render order messages.
+   + Fixed some minor renderbugs.
+   + Don't display signal when silent.
+   + Changed display behaviour for wire hover in show only wires for selected mode.
  * v0.55 (2018-11-27)
    + Fixed mute clicking region.
    + Fixed mute rapid toggle problem.
@@ -179,9 +185,11 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.55"
+scriptName = "Hackey Machines v0.56"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
+
+machineFont = "Lucida Grande"
 
 machineView = {}
 machineView.tracks = {}
@@ -263,6 +271,7 @@ local function initializeKeys( keymap )
   keys.showSignals        = {        2,    2,    2,    2,     0,     0,      0,      26162 }        -- toggle show signals (F2)
   keys.trackNames         = {        2,    2,    2,    2,     0,     0,      0,      26163 }        -- toggle show track names (F3)
   keys.showHidden         = {        2,    2,    2,    2,     0,     0,      0,      26164 }        -- show hidden machines (F4)
+  keys.fitMachines        = {        2,    2,    2,    2,     1,     0,      0,      26165 }        -- fit (Ctrl + F5)
   keys.night              = {        2,    2,    2,    2,     0,     0,      0,      26165 }        -- toggle night mode (F5)
   keys.grid               = {        2,    2,    2,    2,     0,     0,      0,      26166 }        -- toggle grid (F6)
   keys.snapall            = {        2,    2,    2,    2,     0,     0,      0,      26167 }        -- snap all to grid (F7)
@@ -305,6 +314,7 @@ local function initializeKeys( keymap )
     {"F2", "Toggle signal visualization"},
     {"F3", "Toggle showing track names versus machine names"},
     {"F4", "Toggle showing hidden machines"},
+    {"CTRL + F5", "Fit machines to view"},
     {"F5", "Toggle night mode"},
     {"F6", "Toggle snap to grid (off, on/non-visible, on/visible)"},
     {"F7", "Snap everything to grid"},
@@ -562,7 +572,25 @@ function machineView:drawMessages(t)
     else
       gfx.setfont(1, "Verdana", fontsize)
       if ( night == 1 ) then
-        gfx.set(.7, .7, .7, .9)      
+        gfx.set(.2, .2, .2, .9)      
+      else
+        gfx.set(.8, .8, .8, .9)
+      end
+      gfx.x = x-1
+      gfx.y = y-1
+      gfx.drawstr(messages[i][2])
+      gfx.x = x-1
+      gfx.y = y+1
+      gfx.drawstr(messages[i][2])      
+      gfx.x = x-1
+      gfx.y = y-1
+      gfx.drawstr(messages[i][2])
+      gfx.x = x+1
+      gfx.y = y-1
+      gfx.drawstr(messages[i][2])   
+      
+      if ( night == 1 ) then
+        gfx.set(.8, .8, .8, .9)      
       else
         gfx.set(.2, .2, .2, .9)
       end
@@ -603,6 +631,7 @@ function machineView:loadColors(colorScheme)
     colors.buttonbg         = { 0.1, 0.1, 0.1, .7 }
     colors.buttonfg         = { 0.3, 0.9, 0.4, 1.0 }
     colors.connector        = { .2, .2, .2, 0.8 }   
+    colors.wireColor        = { .2, .2, .2, 0.8 }
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
     colors.inactiveColor    = { .6, .6, .6, 1.0 }
     colors.signalColor      = {1/256*129, 1/256*127, 1/256*105, 1}
@@ -618,6 +647,7 @@ function machineView:loadColors(colorScheme)
     colors.buttonbg         = { 0.1, 0.1, 0.1, .7 }
     colors.buttonfg         = { 0.3, 0.9, 0.4, 1.0 }
     colors.connector        = { .4, .4, .4, 0.8 }
+    colors.wireColor        = { .45, .45, .45, 0.8 }
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
     colors.inactiveColor    = { .6, .6, .6, 1.0 } 
     colors.signalColor      = {37/256,111/256,222/256, 1.0}  
@@ -715,10 +745,10 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   local h = zoom * h
 
   gfx.set( 0.0, 0.0, 0.0, 0.8 )
-  gfx.rect(xmi, ymi, w, h+1 )
+  gfx.rect(xmi, ymi, w+1, h+1 )
     
   gfx.set( table.unpack(bg) )
-  gfx.rect(xmi, ymi, w, h )
+  gfx.rect(xmi, ymi, w+1, h )
 
   if ( showSignals > 0 ) then
     gfx.set( table.unpack( fgData ) )
@@ -782,7 +812,7 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
     gfx.set( table.unpack(fg) )
   end
   
-  gfx.setfont(1, "Lucida Grande", math.floor(19*zoom))
+  gfx.setfont(1, machineFont, math.floor(19*zoom))
   
   if ( rnc ) then
     gfx.set( table.unpack(rnc) )
@@ -807,6 +837,19 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
     else
       gfx.set( 1, 1, 1, .5 )    
     end
+    gfx.x = xl
+    gfx.y = yl - 1
+    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+    gfx.x = xl
+    gfx.y = yl + 1
+    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+    gfx.x = xl - 1
+    gfx.y = yl
+    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+    gfx.x = xl + 1
+    gfx.y = yl
+    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+    
     gfx.x = xl - 1
     gfx.y = yl - 1
     gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
@@ -1603,6 +1646,7 @@ function sink.create(viewer, track, idx, sinkData)
   self.GUID           = sinkData.GUID
   self.type           = sinkData.sinkType
   self.color          = colors.connector
+  self.wireColor      = colors.wireColor
 
   -- Calculate the edges of the triangle between this block and the block this block
   -- is sending to (v).
@@ -1630,7 +1674,7 @@ function sink.create(viewer, track, idx, sinkData)
   end
   
   self.arrowVisible = function(self)
-    return hideWires == 0 or (hideWires == 2 and self.accent )
+    return hideWires == 0 or ( hideWires == 2 and self.accent )
   end
   
   self.draw = function(self)
@@ -1638,7 +1682,7 @@ function sink.create(viewer, track, idx, sinkData)
       return
     end
   
-    gfx.set( table.unpack( self.color ) )
+    gfx.set( table.unpack( self.wireColor ) )
     local other = self.viewer:getBlock( self.GUID )
     local this  = self.viewer:getBlock( self.from )
     
@@ -1650,10 +1694,10 @@ function sink.create(viewer, track, idx, sinkData)
         wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[3][1], indicatorPoly[3][2] )
       end
 
-      if ( self.accent or self.ctrls ) then
+      if ( self.accent == 1 or self.ctrls ) then
         wgfx.thickline( this.x, this.y, other.x, other.y, .75, 5, colors.selectionColor )
       else
-        if ( hideWires == 0 ) then
+        if ( hideWires == 0 or (hideWires == 2 and self.accent == 2) ) then
           wgfx.line( this.x, this.y, other.x, other.y )
         end
       end
@@ -1890,10 +1934,16 @@ function block.create(track, x, y, config, viewer)
         str = "[" .. str .. "]"
       end
   
-      -- Calculate amplitude
+      -- Calculate amplitude      
       local peakleft = reaper.Track_GetPeakInfo(self.track, 0)
       local peakright = reaper.Track_GetPeakInfo(self.track, 1)
       local peak = 8.6562*math.log(.5 * (peakleft + peakright))
+      
+      local silent = muted == 1 or blockedBySolo
+      if ( silent ) then
+        peak = 0
+      end
+      
       local noiseFloor = 36
       if ( peak > 0 ) then
         peak = 0;
@@ -1916,7 +1966,7 @@ function block.create(track, x, y, config, viewer)
       self.ravg = self.ravg * 0.5 + peakright
       local sum = (self.lavg + self.ravg)
       local center
-      if ( sum > 0.01 ) then
+      if ( sum > 0.01 and not silent ) then
         local isum = .5 / sum
         center = .5 - isum * self.lavg + isum * self.ravg
       else
@@ -2805,11 +2855,11 @@ function machineView:handleDrag()
   end 
 end
 
-function machineView:highlightRecursively(track)
+function machineView:highlightRecursively(track, value)
   for i,v in pairs( track.sinks ) do
     if ( not v.accent ) then
-      v.accent = 1
-      self:highlightRecursively( self.tracks[v.GUID] )
+      v.accent = value or 1
+      self:highlightRecursively( self.tracks[v.GUID], value )
     end
   end
 end
@@ -2835,15 +2885,30 @@ function machineView:drawHighlightedSignal(mx, my)
       end
     end
   else
+    local found
     for i,v in pairs(self.tracks) do
       for j,w in pairs(v.sinks) do
+        if ( w:checkHit(mx, my) ) then
+          found = w
+        end
         w.accent = nil
       end
     end
-    -- Trace the selected ones
-    for i,v in pairs(self.tracks) do
-      if v.selected == 1 then
-        self:highlightRecursively(v)
+    
+    if ( found ) then
+      -- Trace the selected ones
+      for i,v in pairs(self.tracks) do
+        if v.selected == 1 then
+          self:highlightRecursively(v, 2)
+        end
+      end
+      found.accent = 1
+    else
+      -- Trace the selected ones
+      for i,v in pairs(self.tracks) do
+        if v.selected == 1 then
+          self:highlightRecursively(v)
+        end
       end
     end
   end
@@ -3330,6 +3395,8 @@ local function updateLoop()
         end
       elseif ( inputs('customizeMachines') ) then
         launchTextEditor( getFXListFn() )
+      elseif ( inputs('fitMachines') ) then
+        self:fitMachines()
       elseif ( inputs('movetcp') ) then
         moveTCP = 1 - moveTCP;
         if ( moveTCP == 1 ) then
@@ -3379,7 +3446,6 @@ end
 
 function machineView:updateGUI()
   self:updateGridSize()
-  self:drawMessages()
 
   if ( grid > 1 ) then
     local dX = (zoom*machineView.config.gridx)
@@ -3421,6 +3487,8 @@ function machineView:updateGUI()
       v:drawCtrls()
     end
   end
+  
+  self:drawMessages()
 end
 
 function machineView:updateNames()
@@ -3481,6 +3549,30 @@ function machineView:loadTracks()
   end
 end
 
+function machineView:fitMachines()
+  local minx =  1000000
+  local maxx = -1000000
+  local miny =  1000000
+  local maxy = -1000000
+  for i,v in pairs( self.tracks ) do
+    local vx = v.x
+    local vy = v.y
+    minx = math.min(vx, minx)
+    miny = math.min(vy, miny)
+    maxx = math.max(vx, maxx)
+    maxy = math.max(vy, maxy)
+  end
+
+  local w = machineView.config.blockWidth
+  local h = machineView.config.blockHeight
+  local ws = maxx - minx + 2*w
+  local hs = maxy - miny + 2*h
+  zoom = math.min( gfx.w / ws, gfx.h / hs );
+  
+  origin[1] = .5*gfx.w - 0.5 * (maxx+minx) * zoom
+  origin[2] = .5*gfx.h - 0.5 * (maxy+miny) * zoom
+end
+
 function machineView:forceLinear()
   local groups = {}
   local master
@@ -3524,7 +3616,7 @@ function machineView:forceLinear()
     x = x + self.linearxspacing
   end
   master.x = x-self.linearxspacing
-  master.y = maxLen * self.linearyspacingtop*2
+  master.y = maxLen * self.linearyspacing + self.linearyspacing
 end
 
 function machineView:distribute(onlyFree)
