@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.56
+@version 0.57
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,10 @@
 
 --[[
  * Changelog:
+ * v0.57 (2018-11-29)
+   + Added undo to undo block movement (CTRL + U), was not possible to make a regular undo point for this sadly. Note that this resets when you reset machine view.
+   + Allow clicking along whole line.
+   + Constantly update tracks.
  * v0.56 (2018-11-28)
    + Added fit to screen (CTRL + F5).
    + Switched render order messages.
@@ -185,7 +189,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.56"
+scriptName = "Hackey Machines v0.57"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -254,7 +258,6 @@ local function initializeKeys( keymap )
   keys.additiveSelect     = keys.multiSelect                                                  -- ctrl + drag select additively adds machines
   keys.drag               = {        2,    2,    1,    2,     2,     2,      2,      nil }    -- drag field of view (mmb)
   keys.addMachine         = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- add machine (rmb)
-  
   keys.movetcp            = {        2,    2,    2,    2,     2,     2,      2,      116 }          -- toggle move tcp
   keys.movemixer          = {        2,    2,    2,    2,     2,     2,      2,      109 }          -- toggle move mixer
   keys.delete             = {        2,    2,    2,    2,     0,     0,      0,      6579564.0 }    -- delete machines (del)
@@ -263,6 +266,7 @@ local function initializeKeys( keymap )
   keys.close              = {        2,    2,    2,    2,     0,     0,      0,      27 }           -- close windows (esc)
   keys.undo               = {        2,    2,    2,    2,     1,     0,      0,      26 }           -- undo (ctrl + z)
   keys.redo               = {        2,    2,    2,    2,     1,     0,      1,      26 }           -- undo (ctrl + shift + z)
+  keys.undomoves          = {        2,    2,    2,    2,     1,     0,      0,      21 }           -- undo moves (ctrl + u)
   keys.save               = {        2,    2,    2,    2,     1,     0,      0,      19 }           -- save (ctrl + s)
   keys.hideMachines       = {        2,    2,    2,    2,     0,     0,      0,      104 }          -- hide machines (h)
   keys.simulate           = {        2,    2,    2,    2,     1,     0,      0,      13 }           -- simulate (return)
@@ -328,6 +332,7 @@ local function initializeKeys( keymap )
     {"CTRL + R", "Set selection to record"},
     {"CTRL + S", "Save"},
     {"CTRL + Z", "Undo"},
+    {"CTRL + U", "Undo moves"},
     {"CTRL + SHIFT + Z", "Redo"},
     {"ESCAPE", "Close floating windows"},
     {"DOUBLE ESCAPE", "Close window"},  
@@ -391,6 +396,7 @@ local function initializeKeys( keymap )
       {"CTRL + R", "Set selection to record"},
       {"CTRL + S", "Save"},
       {"CTRL + Z", "Undo"},
+      {"CTRL + U", "Undo moves"},
       {"CTRL + SHIFT + Z", "Redo"},
       {"ESCAPE", "Close floating windows"},
       {"DOUBLE ESCAPE", "Close window"},  
@@ -966,7 +972,25 @@ local function calcCenter( triangle )
   return { ( triangle[1][1] + triangle[2][1] + triangle[3][1] ) / 3, ( triangle[1][2] + triangle[2][2] + triangle[3][2] ) / 3 }
 end
 
-local function inTriangle( triangle, point )
+local function dirS(p1, p2, p3)
+  return (p1[1] - p3[1]) * (p2[2] - p3[2]) - (p2[1] - p3[1]) * (p1[2] - p3[2])
+end
+
+local function inTriangle( triangle, pt )
+  local d1, d2, d3
+  local has_neg, has_pos
+
+  d1 = dirS(pt, triangle[1], triangle[2])
+  d2 = dirS(pt, triangle[2], triangle[3])
+  d3 = dirS(pt, triangle[3], triangle[1])
+
+  has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
+  has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
+
+  return not (has_neg and has_pos)
+end
+
+local function oldInTriangle( triangle, point )
   -- Compute vectors        
   local v0 = sub(triangle[3], triangle[1] );
   local v1 = sub(triangle[2], triangle[1] );
@@ -980,7 +1004,7 @@ local function inTriangle( triangle, point )
   local dot12 = dot(v1, v2);
 
   -- Compute barycentric coordinates
-  local invDenom = 1 / (dot00 * dot11 - dot01 * dot01);
+  local invDenom = 1.0 / (dot00 * dot11 - dot01 * dot01);
   local u = (dot11 * dot02 - dot01 * dot12) * invDenom;
   local v = (dot00 * dot12 - dot01 * dot02) * invDenom;
 
@@ -1655,22 +1679,41 @@ function sink.create(viewer, track, idx, sinkData)
     local this  = self.viewer:getBlock( self.from )
     local diffx = other.x - this.x
     local diffy = other.y - this.y
-    local len = math.sqrt( diffx * diffx + diffy * diffy )
+    local len   = math.sqrt( diffx * diffx + diffy * diffy )
     local alocx = this.x + .5 * diffx
     local alocy = this.y + .5 * diffy
-    local nx = 10 * diffx / len
-    local ny = 10 * diffy / len
-        
+    local nx    = 10 * diffx / len
+    local ny    = 10 * diffy / len
+    
+    local snx = nx
+    local sny = ny
+    local x1  = this.x - sny
+    local y1  = this.y - snx
+    local x2  = this.x + sny
+    local y2  = this.y + snx
+    local x3  = other.x - sny
+    local y3  = other.y - snx
+    local x4  = other.x + sny
+    local y4  = other.y + snx
+    
     return { 
       { alocx + nx,           alocy + ny },
       { alocx - .5 * nx + ny, alocy - .5 * ny - nx },
       { alocx - .5 * nx - ny, alocy - .5 * ny + nx }
+    }, { 
+      { x1, y1 },
+      { x3, y3 },
+      { x2, y2 }
+    }, { 
+      { x4, y4 },
+      { x1, y1 },
+      { x3, y3 }
     }
   end  
   
   self.update = function(self)
-    self.indicatorPoly  = self:calcIndicatorPoly()
-    self.polyCenter     = calcCenter(self.indicatorPoly)
+    self.indicatorPoly, self.linePoly1, self.linePoly2  = self:calcIndicatorPoly()
+    self.polyCenter                                     = calcCenter(self.indicatorPoly)
   end
   
   self.arrowVisible = function(self)
@@ -1712,7 +1755,7 @@ function sink.create(viewer, track, idx, sinkData)
     
   self.checkHit = function(self, x, y)
     if ( self:arrowVisible() ) then
-      return inTriangle( self.indicatorPoly, {x,y} )
+      return ( inTriangle( self.indicatorPoly, {x,y} ) or inTriangle( self.linePoly1, {x,y} ) or inTriangle( self.linePoly2, {x,y} ) )
     end
   end
     
@@ -1785,6 +1828,11 @@ function block.create(track, x, y, config, viewer)
     self.selectionColor = colors.selectionColor
     self.mutedfg = {FG[1], FG[2], FG[3], .5*FG[4]}
     self.mutedbg = {BG[1], BG[2], BG[3], .7*BG[3]}
+  end
+  
+  self.updateData = function(self)
+    self:loadColors()
+    self:updateName()
   end
   
   self:loadColors()
@@ -2159,6 +2207,7 @@ function block.create(track, x, y, config, viewer)
         returnCondition = true
       end
     else    
+      self.viewer.moveStart = nil
       if ( self == lastcapture ) then
         -- Were we trying to connect something?
         if ( self.arrow ) then
@@ -2697,6 +2746,11 @@ function machineView:insertMachine(machine, x, y)
 end
 
 function machineView:moveObjects( diffx, diffy )
+  if ( not self.moveStart ) then
+    self:pushPositions()
+    self.moveStart = 1
+  end
+
   self.blocksMoving = 1
   for i,v in pairs(self.tracks) do
     if ( v.selected == 1 ) then
@@ -2968,6 +3022,38 @@ function machineView:closeFloatingWindows()
 end
 
 
+function machineView:pushPositions()
+  if ( not stack ) then
+    stack = {}
+  end
+  
+  local copy = {}
+  for i,v in pairs(self.tracks) do
+    copy[i] = {x=v.x, y=v.y}
+  end
+  
+  stack[#stack+1] = copy
+end
+
+function machineView:popPositions()
+  if ( stack ) then
+    local cstack = stack[#stack]
+    if ( cstack ) then
+      for i,v in pairs(self.tracks) do
+        if ( cstack[i] ) then
+          v.x = cstack[i].x
+          v.y = cstack[i].y
+        end
+      end
+      stack[#stack] = nil
+    end
+  end  
+end
+
+function machineView:undoMoves()
+  self:popPositions()
+  self:storePositions()
+end
 
 -- This variable is set to 1 when blocks are moved by the move routines.
 -- It is then set to 2 at the start of the next the cycle.
@@ -3001,11 +3087,11 @@ local function updateLoop()
   
   reaper.PreventUIRefresh(1)
   -- Something serious happened. Maybe the user loaded a new file?
-  if ( not pcall( function() self:loadTracks() end ) ) then
+  if ( not pcall( function() self:loadTracks(1) end ) ) then
     -- Drop all tracks and try again
     self.tracks = {}
     self:initializeTracks()
-    self:loadTracks()
+    self:loadTracks(1)
   end
   
   -- Nonsensical SFX
@@ -3279,7 +3365,7 @@ local function updateLoop()
       end
       self.lastCloseAttempt = ctime
     end
-
+    
     -- Maintain the loop until the window is closed or escape is pressed
     if ( lastChar ~= -1 ) then
       reaper.defer(updateLoop)
@@ -3309,6 +3395,7 @@ local function updateLoop()
         self:printMessage( "Toggle hide machines" )
         self:hideMachines()
       elseif ( inputs('simulate') ) then
+        self:pushPositions()
         self.iter = 10
       elseif ( inputs('help') ) then
         self.help = 1
@@ -3332,7 +3419,10 @@ local function updateLoop()
         machineView:updateNames()
         self:storePositions()
       elseif ( inputs('linear') ) then
+        self:pushPositions()
         self:forceLinear()
+      elseif ( inputs('undomoves') ) then
+        self:undoMoves()
       elseif ( inputs('showHidden') ) then
         showHidden = 1 - showHidden
         if ( showHidden == 1 ) then
@@ -3345,7 +3435,7 @@ local function updateLoop()
         night = 1 - night
         if ( night == 1 ) then
           self:loadColors("dark")
-        else    
+        else
           self:loadColors("default")
         end
         for i,v in pairs(self.tracks) do
@@ -3500,7 +3590,7 @@ function machineView:updateNames()
   end
 end
 
-function machineView:loadTracks()
+function machineView:loadTracks(updateNow)
   --local self = machineView
   
   -- Flag tracks as not being found yet
@@ -3520,6 +3610,9 @@ function machineView:loadTracks()
       -- Is this track indexed already?
       if ( self.tracks[GUID] ) then
         self.tracks[GUID].found = 1
+        if ( updateNow ) then
+          self.tracks[GUID]:updateData()
+        end
       else
         local GUID = reaper.GetTrackGUID(track)
         local x, y = self:loadMachinePosition(GUID)
