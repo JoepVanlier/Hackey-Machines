@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.57
+@version 0.58
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,10 @@
 
 --[[
  * Changelog:
+ * v0.58 (2018-11-30)
+   + Multisolo / mute.
+   + Fix click yrange block.
+   + Added extra hinting when block is solo'd to make it more clear.
  * v0.57 (2018-11-29)
    + Added undo to undo block movement (CTRL + U), was not possible to make a regular undo point for this sadly. Note that this resets when you reset machine view.
    + Allow clicking along whole line.
@@ -189,7 +193,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.57"
+scriptName = "Hackey Machines v0.58"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -740,7 +744,7 @@ local function wrapPrint(str, maxlen, maxline)
   return outStr, line
 end
 
-local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden, selected, playColor, selectionColor, rec, center )
+local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden, selected, playColor, selectionColor, rec, center, solo )
   local gfx = gfx
   
   local xmi = xtrafo( x - 0.5*w )
@@ -750,7 +754,16 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   local w = xma - xmi --zoom * w
   local h = zoom * h
 
-  gfx.set( 0.0, 0.0, 0.0, 0.8 )
+  if ( solo ) then
+    gfx.set( table.unpack(playColor) )
+    gfx.a = .2
+    gfx.rect(xmi-3, ymi-3, w+7, h+7 )
+    gfx.rect(xmi-2, ymi-2, w+5, h+5 )
+    gfx.rect(xmi-1, ymi-1, w+3, h+3 )
+    gfx.rect(xmi-1, ymi-1, w+3, h+3 )      
+  end
+
+  gfx.set( 0.0, 0.0, 0.0, 0.95 )
   gfx.rect(xmi, ymi, w+1, h+1 )
     
   gfx.set( table.unpack(bg) )
@@ -2050,9 +2063,9 @@ function block.create(track, x, y, config, viewer)
       
       -- Draw routine
       if ( muted == 1 or blockedBySolo ) then
-        box( self.x, self.y, self.w, self.h, str, self.line, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec, center )
+        box( self.x, self.y, self.w, self.h, str, self.line, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec, center, not notSolo )
       else
-        box( self.x, self.y, self.w, self.h, self.name, self.line, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec, center )
+        box( self.x, self.y, self.w, self.h, self.name, self.line, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec, center, not notSolo )
       end
     end
   end
@@ -2149,7 +2162,7 @@ function block.create(track, x, y, config, viewer)
     end
   
     if ( x > (self.x - .5*self.w) and x < ( self.x + .5*self.w ) ) then
-      if ( y > (self.y - .5*self.w) and y < ( self.y + .5*self.h ) ) then
+      if ( y > (self.y - .5*self.h) and y < ( self.y + .5*self.h ) ) then
         return true
       end
     end
@@ -2388,17 +2401,45 @@ function block.create(track, x, y, config, viewer)
     return solo
   end
   
+  self.enableMute = function(self)
+    reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 1 )
+  end
+  
+  self.disableMute = function(self)
+    reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 0 )
+  end
+  
+  self.enableSolo = function(self)
+    reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 1 )
+  end
+  
+  self.disableSolo = function(self)
+    reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 0 )
+  end
+  
   self.toggleMute = function(self)
     local mute = isMute(self)
-    
+    print(self.selected)
     if ( mute == 1 ) then
-      reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 0 )
+      if ( self.selected == 1 ) then
+        machineView:disableMuteSelection()
+      else
+        self:disableMute()
+      end
     else
-      reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 1 )
+      if ( self.selected == 1 ) then
+        machineView:enableMuteSelection()
+      else
+        self:enableMute()
+      end
       
       -- If it was solo, un-solo!
       if ( isSolo(self) ) then
-        reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 0 )
+        if ( self.selected == 1 ) then
+          machineView:enableMuteSelection()
+        else
+          self:disableSolo()
+        end
       end
     end
   end
@@ -2406,11 +2447,20 @@ function block.create(track, x, y, config, viewer)
   self.toggleSolo = function(self)
     local wasSolo = isSolo(self)
     if ( wasSolo ) then
-      reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 0 )
+      if ( self.selected == 1 ) then
+        machineView:disableSoloSelection()
+      else
+        self:disableSolo()
+      end
     else
       -- If solo'd, make sure it is not muted
-      reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 0 )
-      reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 1 )
+      if ( self.selected == 1 ) then
+        machineView:disableMuteSelection()
+        machineView:enableSoloSelection()
+      else
+        self:disableMute()
+        self:enableSolo()
+      end
     end
   end
   
@@ -3579,6 +3629,38 @@ function machineView:updateGUI()
   end
   
   self:drawMessages()
+end
+
+function machineView:enableMuteSelection()
+  for i,v in pairs(self.tracks) do
+    if ( v.selected == 1 ) then
+      v:enableMute()
+    end
+  end
+end
+
+function machineView:disableMuteSelection()
+  for i,v in pairs(self.tracks) do
+    if ( v.selected == 1 ) then
+      v:disableMute()
+    end
+  end
+end
+
+function machineView:enableSoloSelection()
+  for i,v in pairs(self.tracks) do
+    if ( v.selected == 1 ) then
+      v:enableSolo()
+    end
+  end
+end
+
+function machineView:disableSoloSelection()
+  for i,v in pairs(self.tracks) do
+    if ( v.selected == 1 ) then
+      v:disableSolo()
+    end
+  end
 end
 
 function machineView:updateNames()
