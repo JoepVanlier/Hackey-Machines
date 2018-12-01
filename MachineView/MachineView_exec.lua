@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.58
+@version 0.59
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,10 @@
 
 --[[
  * Changelog:
+ * v0.59 (2018-12-1)
+   + Hotfix: Make sure sinks to self are omitted (bugfix for master always coming up).
+   + Remove console output mute.
+   + Change mute color
  * v0.58 (2018-11-30)
    + Multisolo / mute.
    + Fix click yrange block.
@@ -193,7 +197,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.58"
+scriptName = "Hackey Machines v0.59"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -1768,7 +1772,8 @@ function sink.create(viewer, track, idx, sinkData)
     
   self.checkHit = function(self, x, y)
     if ( self:arrowVisible() ) then
-      return ( inTriangle( self.indicatorPoly, {x,y} ) or inTriangle( self.linePoly1, {x,y} ) or inTriangle( self.linePoly2, {x,y} ) )
+      local hit = inTriangle( self.indicatorPoly, {x,y} ) or inTriangle( self.linePoly1, {x,y} ) or inTriangle( self.linePoly2, {x,y} )
+      return hit
     end
   end
     
@@ -2063,7 +2068,7 @@ function block.create(track, x, y, config, viewer)
       
       -- Draw routine
       if ( muted == 1 or blockedBySolo ) then
-        box( self.x, self.y, self.w, self.h, str, self.line, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec, center, not notSolo )
+        box( self.x, self.y, self.w, self.h, str, self.line, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, colors.muteColor, self.selectionColor, rec, center, not notSolo )
       else
         box( self.x, self.y, self.w, self.h, self.name, self.line, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec, center, not notSolo )
       end
@@ -2090,19 +2095,23 @@ function block.create(track, x, y, config, viewer)
     local sink = sink
     for i=0,sends-1 do
       local sinkData, GUID = sink.sinkData(self.track, i)
-      if ( not self.sinks[GUID] ) then
-        self.sinks[GUID] = sink.create(self.viewer, self.track, i, sinkData)
-      else
-        self.sinks[GUID].removeMe = nil
+      if ( sinkData.parentGUID ~= sinkData.GUID ) then
+        if ( not self.sinks[GUID] ) then
+          self.sinks[GUID] = sink.create(self.viewer, self.track, i, sinkData)
+        else
+          self.sinks[GUID].removeMe = nil
+        end
       end
     end
     local mainSend = reaper.GetMediaTrackInfo_Value(self.track, "B_MAINSEND")
     if ( mainSend == 1 ) then
       local sinkData, GUID = sink.sinkData(self.track, -1)
-      if ( not self.sinks[GUID] ) then
-        self.sinks[GUID] = sink.create(self.viewer, self.track, -1, sinkData)
-      else
-        self.sinks[GUID].removeMe = nil
+      if ( sinkData.parentGUID ~= sinkData.GUID ) then
+        if ( not self.sinks[GUID] ) then
+          self.sinks[GUID] = sink.create(self.viewer, self.track, -1, sinkData)
+        else
+          self.sinks[GUID].removeMe = nil
+        end
       end
     end
     
@@ -2419,7 +2428,6 @@ function block.create(track, x, y, config, viewer)
   
   self.toggleMute = function(self)
     local mute = isMute(self)
-    print(self.selected)
     if ( mute == 1 ) then
       if ( self.selected == 1 ) then
         machineView:disableMuteSelection()
