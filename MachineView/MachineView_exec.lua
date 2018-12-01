@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.60
+@version 0.61
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.61 (2018-12-1)
+   + Added palette (lower left corner, outer RMB on top one to select new color).
  * v0.60 (2018-12-1)
    + Fancier selection animation / highlighting.
    + Allow multiport visualization.
@@ -200,7 +202,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.60"
+scriptName = "Hackey Machines v0.61"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -569,21 +571,127 @@ end
 function palette:init()
   self.colors = {}
   self.sorted = {}
+  self.W = 25
+  self.H = 12
+  self.offsetX = 10
+  self.offsetY = 10
+  self.proceed = 18
+  self.selectedColor = 0
+  self.visibility = 1
 end
 
 function palette:addToPalette(color)
-  if ( not self.colors[color] ) then
-    self.colors[color] = 1
-  end  
+  self.colors[color] = 1
 end
 
 function palette:sort()
   -- Sort the colors table
   local sorted = {}
   for i,v in pairs(self.colors) do
-    table.insert(sorted, v)
+    table.insert(sorted, i)
   end
-  table.sort(sortedKeys, function(a,b) return a < b end )
+  table.sort(sorted, function(a,b) return a < b end )
+  self.sorted = sorted
+end
+
+function palette:draw()
+  self:sort()
+  local sorted = self.sorted or {}
+  
+  local dy = self.proceed
+  local W = self.W
+  local H = self.H
+  local xmi = self.offsetX
+  local xma = xmi + W
+  local yma = gfx.h - self.offsetY
+  local ymi = yma - H
+    
+  for i=1,#sorted do
+    local r, g, b = reaper.ColorFromNative(sorted[i])
+    r = (r/256)
+    g = (g/256)
+    b = (b/256)
+    gfx.set( r*.4, g*.4, b*.4, self.visibility )
+    gfx.rect( xmi-1, ymi-1, W+4, H+4 )
+    
+    gfx.set( r, g, b, self.visibility )
+    gfx.rect( xmi, ymi, W, H )
+  
+    gfx.set( r*.8+.2, g*.8+.2, b*.8+.2, self.visibility )
+    gfx.line(xmi, ymi, xma, ymi)
+    gfx.line(xmi, yma, xma, yma)
+    gfx.line(xmi, ymi, xmi, yma)
+    gfx.line(xma, ymi, xma, yma)
+    
+    ymi = ymi - dy
+    yma = yma - dy
+  end
+  yma = yma - H
+  ymi = ymi - H
+  
+  local r, g, b = reaper.ColorFromNative(self.selectedColor)
+  r = (r/256)
+  g = (g/256)
+  b = (b/256)
+  gfx.set( r*.4, g*.4, b*.4, self.visibility )
+  gfx.rect( xmi-1, ymi-1, W+4, H+4 )
+  
+  gfx.set( r, g, b, self.visibility )
+  gfx.rect( xmi, ymi, W, H )
+  gfx.set( r*.8+.2, g*.8+.2, b*.8+.2, self.visibility )
+  gfx.line(xmi, ymi, xma, ymi)
+  gfx.line(xmi, yma, xma, yma)
+  gfx.line(xmi, ymi, xmi, yma)
+  gfx.line(xma, ymi, xma, yma)
+  
+end
+
+function palette:processMouse(mx, my)
+  local sorted = self.sorted
+  --integer retval, number color = reaper.GR_SelectColor(HWND hwnd)
+  local dy = self.proceed
+  local W = self.W
+  local H = self.H
+  local xmi = self.offsetX
+  local xma = xmi + W
+  local yma = gfx.h - self.offsetY
+  local ymi = yma - H
+  local selectedColor
+  local selected = 0
+  
+  if ( mx < xma ) then
+    self.visibility = math.min(1, self.visibility + .5)
+  else
+    self.visibility = math.max(0, self.visibility * .7)
+  end
+  for i=1,#sorted do
+    if ( mx > xmi and mx < xma and my > ymi and my < yma ) then
+      selected = 1
+      if ( gfx.mouse_cap & 1 > 0 ) then
+        self.selectedColor = sorted[i]
+        selected = 2
+      end
+    end
+    ymi = ymi - dy
+    yma = yma - dy
+  end
+  yma = yma - H
+  ymi = ymi - H
+  if ( mx > xmi and mx < xma and my > ymi and my < yma ) then
+    if ( gfx.mouse_cap & 1 > 0 ) then
+    selected = 2
+    elseif ( gfx.mouse_cap & 2 > 0 ) then
+      local retval, color = reaper.GR_SelectColor('')
+      if ( retval > 0 ) then
+        if ( color ) then
+          self.selectedColor = color
+        end
+        selected = 2
+      end
+    end
+  end
+
+  return selected
 end
 
 function machineView:printMessage( msg )
@@ -1895,7 +2003,7 @@ function block.create(track, x, y, config, viewer)
   self.record = 0
   self.renaming = 0
   self.lavg = 0
-  self.ravg = 0
+  self.ravg = 0  
   
   self.loadColors = function(self)
     local FG = { colors.textcolor[1], colors.textcolor[2], colors.textcolor[3], colors.textcolor[4] }
@@ -1926,6 +2034,11 @@ function block.create(track, x, y, config, viewer)
   self.updateData = function(self)
     self:loadColors()
     self:updateName()
+  end
+  
+  self.setColor = function(self, color)
+    reaper.SetTrackColor(self.track, color)
+    self:loadColors()
   end
   
   self:loadColors()
@@ -2261,7 +2374,7 @@ function block.create(track, x, y, config, viewer)
     if ( not x or not y ) then
       return false
     end
-  
+    
     if ( x > (self.x - .5*self.w) and x < ( self.x + .5*self.w ) ) then
       if ( y > (self.y - .5*self.h) and y < ( self.y + .5*self.h ) ) then
         return true
@@ -3270,404 +3383,439 @@ local function updateLoop()
   prevChar = lastChar
   lastChar = gfx.getchar()
 
-  -- Some machine is being renamed (lock everything control related while this is occurring)
-  if ( self.help ) then
-    local wcmax = 0
-    local wcmax2 = 0
-    for i,v in pairs(help) do
-      local wc, hc = gfx.measurestr(v[1])
-      local wc2, hc = gfx.measurestr(v[2])
-      if ( wc > wcmax ) then
-        wcmax = wc
+    -- Some machine is being renamed (lock everything control related while this is occurring)
+    local colorSelect = palette:processMouse(gfx.mouse_x, gfx.mouse_y)
+    if ( colorSelect > 0 ) then
+      if ( colorSelect > 1 ) then
+        self.painting = palette.selectedColor
       end
-      if ( wc2 > wcmax2 ) then
-        wcmax2 = wc2
-      end
-    end
-
-    local X = 50
-    local Y = 50
-    local wc, hc = gfx.measurestr("c")
-    gfx.set(0.75, 0.73, 0.75, 0.6)
-    gfx.rect(X-10, Y-10,wcmax+wcmax2+40,hc*#help+20)
-    gfx.rect(X-9, Y-9,wcmax+wcmax2+39,hc*#help+19)
-    gfx.rect(X-8, Y-8,wcmax+wcmax2+38,hc*#help+18)
-    for i,v in pairs(help) do
-      gfx.set(0,0,0,1)
-      local wc, hc = gfx.measurestr(v[1])
-      gfx.x = X + wcmax - wc
-      gfx.y = 10+i*hc+20
-      gfx.drawstr( v[1], 1, 1 )
-      gfx.x = X + wcmax + 20
-      gfx.drawstr( v[2], 1, 1 )    
-    end
-    
-    gfx.update()
-    reaper.defer(updateLoop)
-    if ( lastChar ~= -1 ) then
-      if ( gfx.mouse_cap > 0 ) then
-        self.help = nil
-      end
-      if ( lastChar ~= 0 ) then
-        self.help = nil
-      end
-    else
-      self:terminate()
-    end
-  elseif ( self.renameTrack ) then
-    if ( lastChar ~= -1 ) then
-      -- Renaming pattern
-      local jnk, name = reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", "", 0 )
-      if lastChar == 13 then -- Enter
-        self.tracks[self.renameGUID].renaming = 0
-        self.renameTrack = nil
-        self.tracks[self.renameGUID]:updateName()
-      elseif lastChar == 27 then -- Escape
-        self.tracks[self.renameGUID].renaming = 0
-        reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", self.oldTrackName, 1 )
-        self.renameTrack = nil
-        self.tracks[self.renameGUID]:updateName() 
-      elseif lastChar == 8 then -- Backspace
-        name = name:sub(1, name:len()-1)
-        reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", name, 1 )
-        self.tracks[self.renameGUID]:updateName()
+      if ( lastChar ~= -1 ) then
+        gfx.update()
+        reaper.defer(updateLoop)
       else
-        if ( pcall( function () string.char(lastChar) end ) ) then
-          local str = string.char( lastChar )
-          name = string.format( '%s%s', name, str )
-          reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", name, 1 )
-          self.tracks[self.renameGUID]:updateName()          
-        end
+        self:terminate()
       end
-      gfx.update()
-      reaper.defer(updateLoop)
-    else
-      self:terminate()
-    end
-  elseif ( self.insertingMachine ) then
-    -- We are inserting a machine
-    if ( lastChar ~= -1 ) then
-      reaper.defer(updateLoop)
-      if lastChar == 27 then -- Escape
-        self.insertingMachine = nil
-        self.FX_list = nil
+    elseif ( self.painting ) then
+      gfx.setcursor(1, 'arrange_pencil')
+
+      if ( lmb > 0 ) then   
+        local mx = ( gfx.mouse_x - origin[1]) / zoom
+        local my = ( gfx.mouse_y - origin[2]) / zoom
+        for i,v in pairs(self.tracks) do
+          if ( v:checkHit( mx, my ) ) then
+            v:setColor( self.painting )
+          end
+        end
       end
       
-      if ( not self.FX_list ) then
-        if ( self.insertingMachine == 1 ) then
-          self.FX_list = fxlist.create(builtinFXlist, gfx.mouse_x, gfx.mouse_y)
-        else
-          self.FX_list = fxlist.create(FXlist, gfx.mouse_x, gfx.mouse_y)
+      if ( rmb == 1 or lastChar > 0 ) then
+        self.painting = nil
+        gfx.setcursor(1, 'arrow')
+      end
+      
+      if ( lastChar ~= -1 ) then
+        gfx.update()
+        reaper.defer(updateLoop)
+      else
+        self:terminate()
+      end
+    elseif ( self.help ) then
+      local wcmax = 0
+      local wcmax2 = 0
+      for i,v in pairs(help) do
+        local wc, hc = gfx.measurestr(v[1])
+        local wc2, hc = gfx.measurestr(v[2])
+        if ( wc > wcmax ) then
+          wcmax = wc
+        end
+        if ( wc2 > wcmax2 ) then
+          wcmax2 = wc2
+        end
+      end
+  
+      local X = 50
+      local Y = 50
+      local wc, hc = gfx.measurestr("c")
+      gfx.set(0.75, 0.73, 0.75, 0.6)
+      gfx.rect(X-10, Y-10,wcmax+wcmax2+40,hc*#help+20)
+      gfx.rect(X-9, Y-9,wcmax+wcmax2+39,hc*#help+19)
+      gfx.rect(X-8, Y-8,wcmax+wcmax2+38,hc*#help+18)
+      for i,v in pairs(help) do
+        gfx.set(0,0,0,1)
+        local wc, hc = gfx.measurestr(v[1])
+        gfx.x = X + wcmax - wc
+        gfx.y = 10+i*hc+20
+        gfx.drawstr( v[1], 1, 1 )
+        gfx.x = X + wcmax + 20
+        gfx.drawstr( v[2], 1, 1 )    
+      end
+      
+      if ( lastChar ~= -1 ) then
+        gfx.update()
+        reaper.defer(updateLoop)
+        if ( gfx.mouse_cap > 0 ) then
+          self.help = nil
+        end
+        if ( lastChar ~= 0 ) then
+          self.help = nil
         end
       else
-        local ret, val, ix, iy = self.FX_list:draw()
-        if ( ret < 0 ) then
-          self.insertingMachine = nil
-          self.FX_list = nil
-        end
-        if ( ret > 0 ) then
-          self.insertingMachine = nil
-          self.FX_list = nil
-          if ( val[2] == "Templates" ) then
-            self:insertTemplate(val, ix, iy)
-          else
-            self:insertMachine(val[#val], ix, iy)
+        self:terminate()
+      end
+    elseif ( self.renameTrack ) then
+      if ( lastChar ~= -1 ) then
+        -- Renaming pattern
+        local jnk, name = reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", "", 0 )
+        if lastChar == 13 then -- Enter
+          self.tracks[self.renameGUID].renaming = 0
+          self.renameTrack = nil
+          self.tracks[self.renameGUID]:updateName()
+        elseif lastChar == 27 then -- Escape
+          self.tracks[self.renameGUID].renaming = 0
+          reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", self.oldTrackName, 1 )
+          self.renameTrack = nil
+          self.tracks[self.renameGUID]:updateName() 
+        elseif lastChar == 8 then -- Backspace
+          name = name:sub(1, name:len()-1)
+          reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", name, 1 )
+          self.tracks[self.renameGUID]:updateName()
+        else
+          if ( pcall( function () string.char(lastChar) end ) ) then
+            local str = string.char( lastChar )
+            name = string.format( '%s%s', name, str )
+            reaper.GetSetMediaTrackInfo_String(self.renameTrack, "P_NAME", name, 1 )
+            self.tracks[self.renameGUID]:updateName()          
           end
         end
+        gfx.update()
+        reaper.defer(updateLoop)
+      else
+        self:terminate()
       end
-      gfx.update()
-    end
-  elseif ( self.dragSelect ) then
-    -- We are dragging an area
-    self:selectMachines()
-    gfx.update()
-    reaper.defer(updateLoop)
-  else
-    -- Regular window behavior
-    if ( not self.valid ) then
-      self.valid = true
-    end
-    
-    local mx = ( gfx.mouse_x - origin[1]) / zoom
-    local my = ( gfx.mouse_y - origin[2]) / zoom
-    
-    self:drawHighlightedSignal(mx, my)
+    elseif ( self.insertingMachine ) then
+      -- We are inserting a machine
+      if ( lastChar ~= -1 ) then
+        reaper.defer(updateLoop)
+        if lastChar == 27 then -- Escape
+          self.insertingMachine = nil
+          self.FX_list = nil
+        end
         
-    -- Prefer last object that was captured
-    if ( self.lastCapture ) then
-      captured = self.lastCapture:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
-      self:updateMouseState(mx, my)
-      if ( captured == false ) then
-        self.lastCapture = nil
-      end
-    else
-      local captured = false    
-      for i,v in pairs(self.tracks) do
-        -- First check if there is a box control panel open.
-        if ( v.ctrls ) then
-          inrange = v.ctrls:inRange( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
-          if ( not inrange ) then
-            v.ctrls = nil
+        if ( not self.FX_list ) then
+          if ( self.insertingMachine == 1 ) then
+            self.FX_list = fxlist.create(builtinFXlist, gfx.mouse_x, gfx.mouse_y)
           else
-            v.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
-            captured = true
-            break;
+            self.FX_list = fxlist.create(FXlist, gfx.mouse_x, gfx.mouse_y)
+          end
+        else
+          local ret, val, ix, iy = self.FX_list:draw()
+          if ( ret < 0 ) then
+            self.insertingMachine = nil
+            self.FX_list = nil
+          end
+          if ( ret > 0 ) then
+            self.insertingMachine = nil
+            self.FX_list = nil
+            if ( val[2] == "Templates" ) then
+              self:insertTemplate(val, ix, iy)
+            else
+              self:insertMachine(val[#val], ix, iy)
+            end
           end
         end
-       
-        -- Check if there is a sink control panel open
-        for j,w in pairs(v.sinks) do
-          -- First check if there is a sink control panel open. This has highest capture priority.
-          if ( w.ctrls ) then
-            inrange = w.ctrls:inRange( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
+        gfx.update()
+      end
+    elseif ( self.dragSelect ) then
+      -- We are dragging an area
+      self:selectMachines()
+      gfx.update()
+      reaper.defer(updateLoop)
+    else
+      -- Regular window behavior
+      if ( not self.valid ) then
+        self.valid = true
+      end
+      
+      local mx = ( gfx.mouse_x - origin[1]) / zoom
+      local my = ( gfx.mouse_y - origin[2]) / zoom
+      
+      self:drawHighlightedSignal(mx, my)
+          
+      -- Prefer last object that was captured
+      if ( self.lastCapture ) then
+        captured = self.lastCapture:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
+        self:updateMouseState(mx, my)
+        if ( captured == false ) then
+          self.lastCapture = nil
+        end
+      else
+        local captured = false    
+        for i,v in pairs(self.tracks) do
+          -- First check if there is a box control panel open.
+          if ( v.ctrls ) then
+            inrange = v.ctrls:inRange( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
             if ( not inrange ) then
-              w.ctrls = nil
+              v.ctrls = nil
             else
-              --self.lastCapture = 
-              w.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
+              v.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
               captured = true
               break;
             end
           end
-        end
-      end
-        
-      -- Check if a block is clicked
-      if ( not captured ) then
-        for i,v in pairs(self.tracks) do
-          captured = v:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
-          if ( captured ) then
-            self:updateMouseState(mx, my)
-            self.lastCapture = v
-            break;
+         
+          -- Check if there is a sink control panel open
+          for j,w in pairs(v.sinks) do
+            -- First check if there is a sink control panel open. This has highest capture priority.
+            if ( w.ctrls ) then
+              inrange = w.ctrls:inRange( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
+              if ( not inrange ) then
+                w.ctrls = nil
+              else
+                --self.lastCapture = 
+                w.ctrls:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb )
+                captured = true
+                break;
+              end
+            end
           end
         end
-      end
-      
-      if ( not captured ) then
-        for i,v in pairs(self.tracks) do
-          -- Nothing clicked yet, then consider the arrows/sinks?
-          for j,w in pairs(v.sinks) do       
-            -- Check if any of the sinks are clicked.
-            if ( not captured ) then
-              captured = w:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
+          
+        -- Check if a block is clicked
+        if ( not captured ) then
+          for i,v in pairs(self.tracks) do
+            captured = v:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
+            if ( captured ) then
+              self:updateMouseState(mx, my)
+              self.lastCapture = v
+              break;
+            end
+          end
+        end
+        
+        if ( not captured ) then
+          for i,v in pairs(self.tracks) do
+            -- Nothing clicked yet, then consider the arrows/sinks?
+            for j,w in pairs(v.sinks) do       
+              -- Check if any of the sinks are clicked.
+              if ( not captured ) then
+                captured = w:checkMouse( mx, my, self.lx, self.ly, self.lastCapture, self.lmb, self.rmb, self.mmb)
+              end
+              if ( captured ) then
+                --self.lastCapture = w--captured
+                captured = true
+                break;
+              end
             end
             if ( captured ) then
-              --self.lastCapture = w--captured
-              captured = true
               break;
             end
+          end      
+        end        
+        
+        -- Still nothing, then opt for opening the menu or the drag option
+        if ( not captured ) then
+          if ( ( gfx.mouse_cap & 1 ) > 0 ) then
+            self.dragSelect = { gfx.mouse_x, gfx.mouse_y, 0, 0 }
+          elseif ( inputs('addMachine') ) then
+            if ( gfx.mouse_cap & 8 > 0 ) then
+              if ( not builtinFXlist ) then
+                builtinFXlist = self:loadBuiltins()
+                builtinFXlist = sortTable(builtinFXlist)
+                builtinFXlist[#builtinFXlist+1] = FXlist[#FXlist]
+                builtinFXlist[#builtinFXlist].name__ = "Templates"
+              end          
+              self.insertingMachine = 1
+            else          
+              self.insertingMachine = 2                 
+            end
           end
-          if ( captured ) then
-            break;
-          end
+        end
+      end
+    
+      self:handleZoom(mx, my)
+      self:handleDrag()
+    
+      if ( self.iter and self.iter > 0 ) then
+        machineView:distribute()
+        self.iter = self.iter - 1
+        if ( self.iter == 0 ) then
+          self:storePositions()
+        end
+      end
+      
+      if ( self.iterFree and self.iterFree > 0 ) then
+        machineView:distribute(1)
+        self.iterFree = self.iterFree - 1
+        if ( self.iterFree == 0 ) then
+          self:storePositions()
         end      
-      end        
+      end
       
-      -- Still nothing, then opt for opening the menu or the drag option
-      if ( not captured ) then
-        if ( ( gfx.mouse_cap & 1 ) > 0 ) then
-          self.dragSelect = { gfx.mouse_x, gfx.mouse_y, 0, 0 }
-        elseif ( inputs('addMachine') ) then
-          if ( gfx.mouse_cap & 8 > 0 ) then
-            if ( not builtinFXlist ) then
-              builtinFXlist = self:loadBuiltins()
-              builtinFXlist = sortTable(builtinFXlist)
-              builtinFXlist[#builtinFXlist+1] = FXlist[#FXlist]
-              builtinFXlist[#builtinFXlist].name__ = "Templates"
-            end          
-            self.insertingMachine = 1
-          else          
-            self.insertingMachine = 2                 
+      gfx.update()
+      gfx.mouse_wheel = 0
+      
+      if ( inputs('close') ) then
+        local ctime = reaper.time_precise()
+        self:closeFloatingWindows()
+        if ( ( ctime - (self.lastCloseAttempt or -1000000) ) < doubleClickInterval ) then
+          gfx.quit()
+          return;
+        end
+        self.lastCloseAttempt = ctime
+      end
+      
+      -- Maintain the loop until the window is closed or escape is pressed
+      if ( lastChar ~= -1 ) then
+        reaper.defer(updateLoop)
+        
+        if ( inputs('delete') ) then
+          self:deleteMachines()
+        elseif ( inputs('toggleKeymap') ) then
+          self.config.keymap = self.config.keymap + 1
+          if ( self.config.keymap > self.config.maxkeymap ) then
+            self.config.keymap = 0
+          end
+          local filename = getConfigFn()
+          saveCFG(filename, self.config)
+          self:printMessage( "Switching to keymap " .. self.config.keymap .. ": " .. keymapNames[self.config.keymap] )
+          initializeKeys(self.config.keymap)        
+        elseif ( inputs('minzoom') ) then
+          zoom = 0.4
+        elseif ( inputs('maxzoom') ) then
+          zoom = 0.8
+        elseif ( inputs('undo') ) then
+          self:undo()
+        elseif ( inputs('redo') ) then
+          self:redo()
+        elseif ( inputs('save') )  then
+          self:save()
+        elseif ( inputs('hideMachines') ) then
+          self:printMessage( "Toggle hide machines" )
+          self:hideMachines()
+        elseif ( inputs('simulate') ) then
+          self:pushPositions()
+          self.iter = 10
+        elseif ( inputs('help') ) then
+          self.help = 1
+        elseif ( inputs('recGroup') ) then
+          self:setRecordGroup()
+        elseif ( inputs('showSignals') ) then
+          showSignals = 1 - showSignals
+          if ( showSignals == 1 ) then
+            self:printMessage( "Showing signals" )
+          else
+            self:printMessage( "Not showing signals" )        
+          end
+          self:storePositions()
+        elseif ( inputs('trackNames') ) then
+          showTrackName = 1 - showTrackName
+          if ( showTrackName == 1 ) then
+            self:printMessage( "Showing track names" )
+          else
+            self:printMessage( "Not showing track names" )        
+          end
+          machineView:updateNames()
+          self:storePositions()
+        elseif ( inputs('linear') ) then
+          self:pushPositions()
+          self:forceLinear()
+        elseif ( inputs('undomoves') ) then
+          self:undoMoves()
+        elseif ( inputs('showHidden') ) then
+          showHidden = 1 - showHidden
+          if ( showHidden == 1 ) then
+            self:printMessage( "Showing hidden machines" )
+          else
+            self:printMessage( "Hiding hidden machines" )        
+          end
+          self:storePositions()        
+        elseif ( inputs('night') ) then
+          night = 1 - night
+          if ( night == 1 ) then
+            self:loadColors("dark")
+          else
+            self:loadColors("default")
+          end
+          for i,v in pairs(self.tracks) do
+            v:loadColors()
+          end
+          self:storePositions()        
+        elseif ( inputs('grid') ) then
+          grid = grid + 1
+          if ( grid > 2 ) then
+            grid = 0
+          end
+          if ( grid == 1 ) then
+            self:printMessage( "Snap to grid active (invisible)" )
+          elseif ( grid == 2 ) then
+            self:printMessage( "Snap to grid active (visible)" )
+          else
+            self:printMessage( "Snap to grid inactive" )
+          end
+        elseif ( inputs('toggleTrackColors') ) then
+          useColors = 1 - useColors
+          for i,v in pairs(self.tracks) do
+            v:loadColors()
+          end
+          self:storePositions() 
+        elseif ( inputs('snapall') ) then
+          reaper.Undo_BeginBlock()
+          for i,v in pairs(self.tracks) do
+            v:snapToGrid()
+          end
+          self:printMessage( "Snapping all machines to grid" )        
+          reaper.Undo_EndBlock("Hackey Machines: Snap to Grid", -1)            
+        elseif ( inputs('sfx') ) then
+          SFX = 1 - SFX
+        elseif ( inputs('hideWires') ) then
+          hideWires = hideWires + 1
+          if ( hideWires > 2 ) then
+            hideWires = 0
+          end
+          if ( hideWires == 0 ) then
+            self:printMessage( "Showing wires" )
+          end
+          if ( hideWires == 1 ) then
+            self:printMessage( "Hiding wires" )
+          end
+          if ( hideWires == 2 ) then
+            self:printMessage( "Showing wires of selected tracks only" )
+          end
+        elseif ( inputs('customizeMachines') ) then
+          launchTextEditor( getFXListFn() )
+        elseif ( inputs('fitMachines') ) then
+          self:fitMachines()
+        elseif ( inputs('movetcp') ) then
+          moveTCP = 1 - moveTCP;
+          if ( moveTCP == 1 ) then
+            self:printMessage( "Move TCP upon selection change" )
+          else
+            self:printMessage( "Don't move TCP upon selection change" )
+          end
+        elseif ( inputs('movemixer') ) then
+          moveMixer = 1 - moveMixer;
+          if ( moveMixer == 1 ) then
+            self:printMessage( "Move mixer upon selection change" )
+          else
+            self:printMessage( "Don't move mixer upon selection change" )
+          end
+        end
+      else
+        self:terminate()
+      end
+    end
+    
+    -- User released the block, snappy snappy!
+    if ( self.blocksMoving == 2 ) then
+      if ( grid > 0 ) then
+        for i,v in pairs( self.tracks ) do
+          if ( v.moved ) then
+            v:snapToGrid()
+            v.moved = nil
           end
         end
       end
     end
-  
-    self:handleZoom(mx, my)
-    self:handleDrag()
-  
-    if ( self.iter and self.iter > 0 ) then
-      machineView:distribute()
-      self.iter = self.iter - 1
-      if ( self.iter == 0 ) then
-        self:storePositions()
-      end
-    end
-    
-    if ( self.iterFree and self.iterFree > 0 ) then
-      machineView:distribute(1)
-      self.iterFree = self.iterFree - 1
-      if ( self.iterFree == 0 ) then
-        self:storePositions()
-      end      
-    end
-    
-    gfx.update()
-    gfx.mouse_wheel = 0
-    
-    if ( inputs('close') ) then
-      local ctime = reaper.time_precise()
-      self:closeFloatingWindows()
-      if ( ( ctime - (self.lastCloseAttempt or -1000000) ) < doubleClickInterval ) then
-        gfx.quit()
-        return;
-      end
-      self.lastCloseAttempt = ctime
-    end
-    
-    -- Maintain the loop until the window is closed or escape is pressed
-    if ( lastChar ~= -1 ) then
-      reaper.defer(updateLoop)
-      
-      if ( inputs('delete') ) then
-        self:deleteMachines()
-      elseif ( inputs('toggleKeymap') ) then
-        self.config.keymap = self.config.keymap + 1
-        if ( self.config.keymap > self.config.maxkeymap ) then
-          self.config.keymap = 0
-        end
-        local filename = getConfigFn()
-        saveCFG(filename, self.config)
-        self:printMessage( "Switching to keymap " .. self.config.keymap .. ": " .. keymapNames[self.config.keymap] )
-        initializeKeys(self.config.keymap)        
-      elseif ( inputs('minzoom') ) then
-        zoom = 0.4
-      elseif ( inputs('maxzoom') ) then
-        zoom = 0.8
-      elseif ( inputs('undo') ) then
-        self:undo()
-      elseif ( inputs('redo') ) then
-        self:redo()
-      elseif ( inputs('save') )  then
-        self:save()
-      elseif ( inputs('hideMachines') ) then
-        self:printMessage( "Toggle hide machines" )
-        self:hideMachines()
-      elseif ( inputs('simulate') ) then
-        self:pushPositions()
-        self.iter = 10
-      elseif ( inputs('help') ) then
-        self.help = 1
-      elseif ( inputs('recGroup') ) then
-        self:setRecordGroup()
-      elseif ( inputs('showSignals') ) then
-        showSignals = 1 - showSignals
-        if ( showSignals == 1 ) then
-          self:printMessage( "Showing signals" )
-        else
-          self:printMessage( "Not showing signals" )        
-        end
-        self:storePositions()
-      elseif ( inputs('trackNames') ) then
-        showTrackName = 1 - showTrackName
-        if ( showTrackName == 1 ) then
-          self:printMessage( "Showing track names" )
-        else
-          self:printMessage( "Not showing track names" )        
-        end
-        machineView:updateNames()
-        self:storePositions()
-      elseif ( inputs('linear') ) then
-        self:pushPositions()
-        self:forceLinear()
-      elseif ( inputs('undomoves') ) then
-        self:undoMoves()
-      elseif ( inputs('showHidden') ) then
-        showHidden = 1 - showHidden
-        if ( showHidden == 1 ) then
-          self:printMessage( "Showing hidden machines" )
-        else
-          self:printMessage( "Hiding hidden machines" )        
-        end
-        self:storePositions()        
-      elseif ( inputs('night') ) then
-        night = 1 - night
-        if ( night == 1 ) then
-          self:loadColors("dark")
-        else
-          self:loadColors("default")
-        end
-        for i,v in pairs(self.tracks) do
-          v:loadColors()
-        end
-        self:storePositions()        
-      elseif ( inputs('grid') ) then
-        grid = grid + 1
-        if ( grid > 2 ) then
-          grid = 0
-        end
-        if ( grid == 1 ) then
-          self:printMessage( "Snap to grid active (invisible)" )
-        elseif ( grid == 2 ) then
-          self:printMessage( "Snap to grid active (visible)" )
-        else
-          self:printMessage( "Snap to grid inactive" )
-        end
-      elseif ( inputs('toggleTrackColors') ) then
-        useColors = 1 - useColors
-        for i,v in pairs(self.tracks) do
-          v:loadColors()
-        end
-        self:storePositions() 
-      elseif ( inputs('snapall') ) then
-        reaper.Undo_BeginBlock()
-        for i,v in pairs(self.tracks) do
-          v:snapToGrid()
-        end
-        self:printMessage( "Snapping all machines to grid" )        
-        reaper.Undo_EndBlock("Hackey Machines: Snap to Grid", -1)            
-      elseif ( inputs('sfx') ) then
-        SFX = 1 - SFX
-      elseif ( inputs('hideWires') ) then
-        hideWires = hideWires + 1
-        if ( hideWires > 2 ) then
-          hideWires = 0
-        end
-        if ( hideWires == 0 ) then
-          self:printMessage( "Showing wires" )
-        end
-        if ( hideWires == 1 ) then
-          self:printMessage( "Hiding wires" )
-        end
-        if ( hideWires == 2 ) then
-          self:printMessage( "Showing wires of selected tracks only" )
-        end
-      elseif ( inputs('customizeMachines') ) then
-        launchTextEditor( getFXListFn() )
-      elseif ( inputs('fitMachines') ) then
-        self:fitMachines()
-      elseif ( inputs('movetcp') ) then
-        moveTCP = 1 - moveTCP;
-        if ( moveTCP == 1 ) then
-          self:printMessage( "Move TCP upon selection change" )
-        else
-          self:printMessage( "Don't move TCP upon selection change" )
-        end
-      elseif ( inputs('movemixer') ) then
-        moveMixer = 1 - moveMixer;
-        if ( moveMixer == 1 ) then
-          self:printMessage( "Move mixer upon selection change" )
-        else
-          self:printMessage( "Don't move mixer upon selection change" )
-        end
-      end
-    else
-      self:terminate()
-    end
-  end
-  
-  -- User released the block, snappy snappy!
-  if ( self.blocksMoving == 2 ) then
-    if ( grid > 0 ) then
-      for i,v in pairs( self.tracks ) do
-        if ( v.moved ) then
-          v:snapToGrid()
-          v.moved = nil
-        end
-      end
-    end
-  end
 end
 
 function machineView:terminate()
@@ -3727,6 +3875,8 @@ function machineView:updateGUI()
       v:drawCtrls()
     end
   end
+  
+  palette:draw()
   
   self:drawMessages()
 end
