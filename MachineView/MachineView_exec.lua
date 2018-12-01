@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.59
+@version 0.60
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.60 (2018-12-1)
+   + Fancier selection animation / highlighting.
+   + Allow multiport visualization.
  * v0.59 (2018-12-1)
    + Hotfix: Make sure sinks to self are omitted (bugfix for master always coming up).
    + Remove console output mute.
@@ -197,7 +200,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.59"
+scriptName = "Hackey Machines v0.60"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -229,10 +232,11 @@ machineView.linearyspacingtop = 100
 machineView.linearxspacing = 250
 
 messages = {}
-
 templates = {}
 templates.slash = '\\'
 templates.extension = ".RTrackTemplate"
+
+palette = {}
 
 -- This variable is set to 1 when blocks are moved by the move routines.
 -- It is then set to 2 at the start of the next the cycle.
@@ -562,13 +566,32 @@ local function sortTable(data)
   return newTable
 end
 
+function palette:init()
+  self.colors = {}
+  self.sorted = {}
+end
+
+function palette:addToPalette(color)
+  if ( not self.colors[color] ) then
+    self.colors[color] = 1
+  end  
+end
+
+function palette:sort()
+  -- Sort the colors table
+  local sorted = {}
+  for i,v in pairs(self.colors) do
+    table.insert(sorted, v)
+  end
+  table.sort(sortedKeys, function(a,b) return a < b end )
+end
+
 function machineView:printMessage( msg )
   messages[#messages+1] = { self.config.msgTime, msg }
 end
 
-
 function machineView:drawMessages(t)
-  local fontsize = 12
+  local fontsize = 20
   local messages = messages
   local cTime = reaper.time_precise()
   local dt = cTime - (self.lastMsgTime or cTime)
@@ -913,11 +936,23 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   end  
   
   if ( selected > 0 ) then
+    gfx.set(0,0,0,.1)
+    local nmax = 8
+    local mi1 = xmi + .1 * w
+    local mi2 = xmi
+    local xxm = 2*xma-1.05*w
+    for i=1,nmax do
+      gfx.triangle(xmi, ymi, mi1, ymi, xmi, yma, mi2, yma)
+      gfx.triangle(xma, ymi, xxm-mi1, yma, xma, yma, xxm-mi2, ymi)
+      mi1 = math.max(xmi,mi1 + 2)
+      mi2 = math.max(xmi,mi2 + 2)
+    end  
+  
     gfx.set( table.unpack( fgData ) )
     xmi = xmi - 2
     ymi = ymi - 2
-    xma = xma + 4
-    yma = yma + 4
+    xma = xma + 2
+    yma = yma + 3
     
     gfx.line(xmi, ymi, xma, ymi)
     gfx.line(xmi, yma, xma, yma)
@@ -925,7 +960,34 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
     gfx.line(xma, ymi, xma, yma)
     
     gfx.set( selectionColor[1], selectionColor[2], selectionColor[3], selected )
-    gfx.rect(xmi, ymi, w+7, h+7 )
+    gfx.rect(xmi, ymi, w+6, h+6 )
+    
+    local rt = reaper.time_precise()
+    rt = rt - math.floor(rt)
+    rt = math.sqrt(rt)
+    gfx.set(selectionColor[1], selectionColor[2], selectionColor[3],.7*(1-rt))
+    local animPos = 15*rt*zoom + 2
+    xmi = xmi - animPos
+    xma = xma + animPos
+    ymi = ymi - animPos
+    yma = yma + animPos
+    gfx.line(xmi, ymi, xma, ymi)
+    gfx.line(xmi, yma, xma, yma)
+    gfx.line(xmi, ymi, xmi, yma)
+    gfx.line(xma, ymi, xma, yma)
+    
+    gfx.set(selectionColor[1], selectionColor[2], selectionColor[3],2*(1-rt))
+    gfx.line(xmi, ymi, xmi+5, ymi)
+    gfx.line(xmi, ymi, xmi, ymi+5)
+    
+    gfx.line(xma, ymi, xma-5, ymi)
+    gfx.line(xma, ymi, xma, ymi+5)
+    
+    gfx.line(xmi, yma, xmi+5, yma)
+    gfx.line(xmi, yma, xmi, yma-5)
+    
+    gfx.line(xma, yma, xma-5, yma)
+    gfx.line(xma, yma, xma, yma-5)
   end
 end
 
@@ -1677,7 +1739,7 @@ function sink.sinkData(track, idx)
 end
   
 
-function sink.create(viewer, track, idx, sinkData)
+function sink.create(viewer, track, idx, sinkData, offset)
   local GUID
   local self          = {}
   self.viewer         = viewer  
@@ -1688,30 +1750,41 @@ function sink.create(viewer, track, idx, sinkData)
   self.type           = sinkData.sinkType
   self.color          = colors.connector
   self.wireColor      = colors.wireColor
+  self.offset         = offset
 
   -- Calculate the edges of the triangle between this block and the block this block
   -- is sending to (v).
   self.calcIndicatorPoly = function(self)
-    local other = self.viewer:getBlock( self.GUID )  
+    local other = self.viewer:getBlock( self.GUID )
     local this  = self.viewer:getBlock( self.from )
+    other       = { x = other.x, y = other.y, hidden = other.hidden }
+    this        = { x = this.x, y = this.y, hidden = this.hidden }
     local diffx = other.x - this.x
     local diffy = other.y - this.y
     local len   = math.sqrt( diffx * diffx + diffy * diffy )
-    local alocx = this.x + .5 * diffx
-    local alocy = this.y + .5 * diffy
     local nx    = 10 * diffx / len
     local ny    = 10 * diffy / len
     
-    local snx = nx
-    local sny = ny
-    local x1  = this.x - sny
-    local y1  = this.y - snx
-    local x2  = this.x + sny
-    local y2  = this.y + snx
-    local x3  = other.x - sny
-    local y3  = other.y - snx
-    local x4  = other.x + sny
-    local y4  = other.y + snx
+    this.x      = this.x - offset * ny
+    this.y      = this.y + offset * nx
+    other.x     = other.x - offset * ny
+    other.y     = other.y + offset * nx
+    self.this   = this
+    self.other  = other
+    
+    local alocx = this.x + .5 * diffx
+    local alocy = this.y + .5 * diffy
+    
+    local snx   = -.5*ny
+    local sny   = .5*nx
+    local x1    = this.x - snx
+    local y1    = this.y - sny
+    local x2    = this.x + snx
+    local y2    = this.y + sny
+    local x3    = other.x - snx
+    local y3    = other.y - sny
+    local x4    = other.x + snx
+    local y4    = other.y + sny
     
     return { 
       { alocx + nx,           alocy + ny },
@@ -1743,8 +1816,8 @@ function sink.create(viewer, track, idx, sinkData)
     end
   
     gfx.set( table.unpack( self.wireColor ) )
-    local other = self.viewer:getBlock( self.GUID )
-    local this  = self.viewer:getBlock( self.from )
+    local other = self.other
+    local this  = self.this
     
     if ( this.hidden == 0 or (showHidden == 1) ) then
       local indicatorPoly = self.indicatorPoly
@@ -1838,6 +1911,8 @@ function block.create(track, x, y, config, viewer)
         BG[3] = (b/256)*o + BG[3]*(1-o)
         BG[4] = .8
       end
+      
+      palette:addToPalette(col)
     end
     
     self.fg = FG
@@ -1845,7 +1920,7 @@ function block.create(track, x, y, config, viewer)
     self.line = colors.linecolor
     self.selectionColor = colors.selectionColor
     self.mutedfg = {FG[1], FG[2], FG[3], .5*FG[4]}
-    self.mutedbg = {BG[1], BG[2], BG[3], .7*BG[3]}
+    self.mutedbg = {BG[1], BG[2], BG[3], .7*BG[3]}    
   end
   
   self.updateData = function(self)
@@ -2093,11 +2168,20 @@ function block.create(track, x, y, config, viewer)
     
     -- Update the sinks only if there have been changes
     local sink = sink
+    local sinkMemory = {}
     for i=0,sends-1 do
       local sinkData, GUID = sink.sinkData(self.track, i)
       if ( sinkData.parentGUID ~= sinkData.GUID ) then
+        local offset = 0
+        local combinedGUID = sinkData.parentGUID .. sinkData.GUID
+        if ( sinkMemory[combinedGUID] ) then
+          sinkMemory[combinedGUID] = sinkMemory[combinedGUID] + 1
+          offset = sinkMemory[combinedGUID]
+        else
+          sinkMemory[combinedGUID] = 0
+        end
         if ( not self.sinks[GUID] ) then
-          self.sinks[GUID] = sink.create(self.viewer, self.track, i, sinkData)
+          self.sinks[GUID] = sink.create(self.viewer, self.track, i, sinkData, offset)
         else
           self.sinks[GUID].removeMe = nil
         end
@@ -2107,8 +2191,16 @@ function block.create(track, x, y, config, viewer)
     if ( mainSend == 1 ) then
       local sinkData, GUID = sink.sinkData(self.track, -1)
       if ( sinkData.parentGUID ~= sinkData.GUID ) then
+        local offset = 0
+        local combinedGUID = sinkData.parentGUID .. sinkData.GUID
+        if ( sinkMemory[combinedGUID] ) then
+          sinkMemory[combinedGUID] = sinkMemory[combinedGUID] + 1
+          offset = sinkMemory[combinedGUID]
+        else
+          sinkMemory[combinedGUID] = 0
+        end
         if ( not self.sinks[GUID] ) then
-          self.sinks[GUID] = sink.create(self.viewer, self.track, -1, sinkData)
+          self.sinks[GUID] = sink.create(self.viewer, self.track, -1, sinkData, offset)
         else
           self.sinks[GUID].removeMe = nil
         end
@@ -4345,4 +4437,5 @@ function machineView:loadPositions()
   end  
 end
 
+palette:init()
 Main()
