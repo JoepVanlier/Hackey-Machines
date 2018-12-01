@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.61
+@version 0.62
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.62 (2018-12-1)
+   + Minor fix clipping.
+   + Show wires when hovering over track even in selected track wire mode.
  * v0.61 (2018-12-1)
    + Added palette (lower left corner, outer RMB on top one to select new color).
  * v0.60 (2018-12-1)
@@ -202,7 +205,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.61"
+scriptName = "Hackey Machines v0.62"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -847,6 +850,7 @@ local function wrapPrint(str, maxlen, maxline)
   local line = 1
   local outStr = ''
   str = str .. ' ';
+
   while( not done ) do
     local cchar = str:sub(cpos, cpos)
     if ( cchar == " " ) then
@@ -875,7 +879,6 @@ local function wrapPrint(str, maxlen, maxline)
   end
 
   outStr = outStr .. str:sub(lastLineStart, -1)
-  
   return outStr, line
 end
 
@@ -2097,12 +2100,12 @@ function block.create(track, x, y, config, viewer)
           end
           
           -- Check if the name fits the box
-          local w, h = gfx.measurestr(name)
-          i = #name
-          while ( w > self.w ) do
-            name = name:sub(1,-2)
-            w, h = gfx.measurestr("[("..name..")]")
-          end
+          --local w, h = gfx.measurestr(name)
+          --i = #name
+          --while ( w > self.w ) do
+          --  name = name:sub(1,-2)
+          --  w, h = gfx.measurestr("[("..name..")]")
+          --end
         
           self.name = name
         else
@@ -3210,6 +3213,10 @@ function machineView:drawHighlightedSignal(mx, my)
         end
         w.accent = nil
       end
+      
+      if v:checkHit( mx, my ) then
+        over = v
+      end
     end
     
     if ( found ) then
@@ -3229,6 +3236,11 @@ function machineView:drawHighlightedSignal(mx, my)
       end
     end
   end
+  
+  if ( over ) then
+    self:highlightRecursively(over)
+  end
+  
   self.lastOver = over
 end
 
