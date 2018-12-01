@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.62
+@version 0.63
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.63 (2018-12-1)
+   + Modify cursor command seems a bit buggy. Attempt 2
  * v0.62 (2018-12-1)
    + Minor fix clipping.
    + Show wires when hovering over track even in selected track wire mode.
@@ -205,7 +207,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.62"
+scriptName = "Hackey Machines v0.63"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -3408,7 +3410,7 @@ local function updateLoop()
         self:terminate()
       end
     elseif ( self.painting ) then
-      gfx.setcursor(1, 'arrange_pencil')
+      gfx.setcursor(473, 473)
 
       if ( lmb > 0 ) then   
         local mx = ( gfx.mouse_x - origin[1]) / zoom
