@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.63
+@version 0.64
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.64 (2018-12-2)
+   + Added toggle to disable colorbar completely.
  * v0.63 (2018-12-1)
    + Modify cursor command seems a bit buggy. Attempt 2
  * v0.62 (2018-12-1)
@@ -207,7 +209,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.63"
+scriptName = "Hackey Machines v0.64"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -252,6 +254,7 @@ machineView.blocksMoving = 0
 moveTCP = 0
 moveMixer = 1
 recCornerSize = .2
+useColorBar = 1
 
 local keys = {}
 local keymapNames = {}
@@ -294,6 +297,7 @@ local function initializeKeys( keymap )
   keys.showSignals        = {        2,    2,    2,    2,     0,     0,      0,      26162 }        -- toggle show signals (F2)
   keys.trackNames         = {        2,    2,    2,    2,     0,     0,      0,      26163 }        -- toggle show track names (F3)
   keys.showHidden         = {        2,    2,    2,    2,     0,     0,      0,      26164 }        -- show hidden machines (F4)
+  keys.colorbarToggle     = {        2,    2,    2,    2,     1,     0,      0,      26161 }        -- toggle colorbar off permanently (Ctrl + F1)
   keys.fitMachines        = {        2,    2,    2,    2,     1,     0,      0,      26165 }        -- fit (Ctrl + F5)
   keys.night              = {        2,    2,    2,    2,     0,     0,      0,      26165 }        -- toggle night mode (F5)
   keys.grid               = {        2,    2,    2,    2,     0,     0,      0,      26166 }        -- toggle grid (F6)
@@ -334,6 +338,7 @@ local function initializeKeys( keymap )
     {"T", "Toggle move TCP upon selection"},
     {"M", "Toggle move mixer upon selection"},
     {"F1", "Help"},
+    {"Ctrl + F1", "Disable colorbar"},
     {"F2", "Toggle signal visualization"},
     {"F3", "Toggle showing track names versus machine names"},
     {"F4", "Toggle showing hidden machines"},
@@ -417,6 +422,7 @@ local function initializeKeys( keymap )
       {"CTRL + Z", "Undo"},
       {"CTRL + U", "Undo moves"},
       {"CTRL + SHIFT + Z", "Redo"},
+      {"Ctrl + F1", "Disable colorbar"},
       {"ESCAPE", "Close floating windows"},
       {"DOUBLE ESCAPE", "Close window"},  
     }
@@ -3398,7 +3404,12 @@ local function updateLoop()
   lastChar = gfx.getchar()
 
     -- Some machine is being renamed (lock everything control related while this is occurring)
-    local colorSelect = palette:processMouse(gfx.mouse_x, gfx.mouse_y)
+    local colorSelect = 0
+    
+    if ( useColorBar == 1 ) then
+      colorSelect = palette:processMouse(gfx.mouse_x, gfx.mouse_y)
+    end
+    
     if ( colorSelect > 0 ) then
       if ( colorSelect > 1 ) then
         self.painting = palette.selectedColor
@@ -3813,6 +3824,13 @@ local function updateLoop()
           else
             self:printMessage( "Don't move mixer upon selection change" )
           end
+        elseif ( inputs('colorbarToggle') ) then
+          useColorBar = 1 - useColorBar;
+          if ( useColorBar == 1 ) then
+            self:printMessage( "Colorbar enabled" )
+          else
+            self:printMessage( "Colorbar disabled" )
+          end
         end
       else
         self:terminate()
@@ -3890,7 +3908,9 @@ function machineView:updateGUI()
     end
   end
   
-  palette:draw()
+  if ( useColorBar == 1 ) then
+    palette:draw()
+  end
   
   self:drawMessages()
 end
@@ -4525,6 +4545,10 @@ function machineView:loadWindowPosition()
   local ok, v = reaper.GetProjExtState(0, "MVJV001", "moveMixer")
   if ( ok ) then move2 = tonumber( v ) end
   
+  local ok, v = reaper.GetProjExtState(0, "MVJV001", "useColorBar")
+  if ( ok ) then cb = tonumber( v ) end
+  
+  
   origin[1]     = ox or origin[1]
   origin[2]     = oy or origin[2]
   zoom          = z or zoom
@@ -4533,6 +4557,7 @@ function machineView:loadWindowPosition()
   showHidden    = showH or showHidden  
   moveTCP       = move or moveTCP
   moveMixer     = move2 or moveMixer
+  useColorBar   = cb or useColorBar
   
   self.config.x      = x    or self.config.x
   self.config.y      = y    or self.config.y
@@ -4569,6 +4594,7 @@ function machineView:storePositions()
   reaper.SetProjExtState(0, "MVJV001", "grid", tostring(grid))  
   reaper.SetProjExtState(0, "MVJV001", "useColors", tostring(useColors))
   reaper.SetProjExtState(0, "MVJV001", "hideWires", tostring(hideWires))
+  reaper.SetProjExtState(0, "MVJV001", "useColorBar", tostring(useColorBar))
 end
 
 function machineView:loadMachinePosition(GUID)
