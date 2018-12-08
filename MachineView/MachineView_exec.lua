@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.64
+@version 0.65
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.65 (2018-12-8)
+   + Rename reaper-kb.
  * v0.64 (2018-12-2)
    + Added toggle to disable colorbar completely.
  * v0.63 (2018-12-1)
@@ -3255,7 +3257,7 @@ end
 local function findCommandID(name)
   local commandID
   local lines = {}
-  local fn = reaper.GetResourcePath() .. '//' .. "Reaper-kb.ini"
+  local fn = reaper.GetResourcePath() .. "/reaper-kb.ini"
   for line in io.lines(fn) do
     lines[#lines + 1] = line
   end
