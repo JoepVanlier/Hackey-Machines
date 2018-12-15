@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.65
+@version 0.66
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,20 @@
 
 --[[
  * Changelog:
+ * v0.66 (2018-12-15)
+   + Option for shadow alpha and offset (shadowAlpha & shadowOffset).
+   + Option for setting text rendering (outline or not). 0 = inverse of bg color, 1 = outlined, 2 = white or black depending on bg color.
+   + Added option to control dials by mousewheel.
+   + Added option to fix mute button size (muteButtonSize, 0 is autosize, >0 is fixed size).
+   + Highlight with light in night mode.
+   + Improved look of arrow (solid).
+   + Added options to modify alpha transparency of sends/parents (sendAlpha and parentAlpha).
+   + Fixed annoying issues with highlighting wires that were under blocks.
+   + Added extra penalty spring force between tracks that is driven by color similarity (to improve clustering by color).
+   + Added small noise term to avoid local optima when running the force simulation.
+   + Improved row sorting for linear layout (attempt to avoid sending signal backwards and attempt to skip more than 1 machine vertically).
+   + Option to open configuration file from script (CTRL+F10). Warning: Close the machine view before you save it, or it gets overwritten.
+   + Improved visibility signal flow on night theme (green-based highlighting to maintain visibility when using programs such as f.lux).
  * v0.65 (2018-12-8)
    + Rename reaper-kb.
  * v0.64 (2018-12-2)
@@ -211,7 +225,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.64"
+scriptName = "Hackey Machines v0.66"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -228,6 +242,13 @@ machineView.config.x = 100
 machineView.config.y = 100
 machineView.config.d = 0
 machineView.config.square = 1
+machineView.config.shadowAlpha = 0.3
+machineView.config.shadowOffset = 5
+machineView.config.textOutline = 1
+machineView.config.textOutlineAlpha = 0.5
+machineView.config.muteButtonSize = 0
+machineView.config.sendAlpha = .4
+machineView.config.parentAlpha = 1
 
 machineView.config.muteOrigX = 4
 machineView.config.muteOrigY = 4
@@ -236,11 +257,12 @@ machineView.config.muteHeight = 7
 machineView.config.keymap = 0
 machineView.config.maxkeymap = 1
 machineView.config.msgTime = 2.5
+machineView.config.rowSortMethod = 1
 
 -- Settings for the linear spacing algorithm
 machineView.linearyspacing = 75
 machineView.linearyspacingtop = 100
-machineView.linearxspacing = 250
+machineView.linearxspacing = 200
 
 messages = {}
 templates = {}
@@ -308,12 +330,15 @@ local function initializeKeys( keymap )
   keys.sfx                = {        2,    2,    2,    2,     0,     0,      0,      26168 }        -- surprise! (F8)
   keys.hideWires          = {        2,    2,    2,    2,     0,     0,      0,      26169 }        -- hide wires (F9)
   keys.customizeMachines  = {        2,    2,    2,    2,     0,     0,      0,      6697264 }      -- customize machine list (F10)
+  keys.editConfig         = {        2,    2,    2,    2,     1,     0,      0,      6697264 }      -- customize machine list (Ctrl + F10)
   keys.toggleTrackColors  = {        2,    2,    2,    2,     0,     0,      0,      6697265 }      -- toggle track colors (F11)
   keys.toggleKeymap       = {        2,    2,    2,    2,     0,     0,      0,      6697266 }      -- toggle key map (F12)  
+  keys.reverseMod         = {        0,    0,    0,    2,     0,     1,      0,      nil }          -- alt
   
   help = {
     {"Shift drag machine", "Connect machines"},    
     {"Left click arrow", "Volume, panning, channel and disconnect controls"},
+    {"Alt + hover", "Reverse signal lookup"},
     {"Drag on dial", "Change setting"},
     {"Ctrl + drag on dial", "Change setting (5x slower)"},
     {"Shift + drag on dial", "Change setting (10x slower)"},
@@ -351,6 +376,7 @@ local function initializeKeys( keymap )
     {"Ctrl + F7", "Reset layout to linear layout based on track color"},    
     {"F8", "Weird stuff"},
     {"F9", "Hide wires / Show only wires of selected tracks / Show wires"},  
+    {"Ctrl + F10", "Open config file (windows only)"},
     {"F10", "Open FX editing list (windows only)"},
     {"F11", "Toggle use of track colors"},    
     {"F12", "Toggle key layout (0 = default, 1 = RMB drag, MMB insert machine)"},
@@ -381,6 +407,7 @@ local function initializeKeys( keymap )
     help = {
       {"Shift drag machine", "Connect machines"},    
       {"Left click arrow", "Volume, panning, channel and disconnect controls"},
+      {"Alt + hover", "Reverse signal lookup"},
       {"Drag on dial", "Change setting"},
       {"Ctrl + drag on dial", "Change setting (5x slower)"},
       {"Shift + drag on dial", "Change setting (10x slower)"},
@@ -415,6 +442,7 @@ local function initializeKeys( keymap )
       {"F7", "Snap everything to grid"},
       {"F8", "Hide wires / Show only wires of selected tracks / Show wires"},  
       {"F9", "Weird stuff"},
+      {"Ctrl + F10", "Open config file (windows only)"},
       {"F10", "Toggle use of track colors"},
       {"F11", "Open FX editing list (windows only)"},
       {"F12", "Toggle key layout (0 = default, 1 = RMB drag, MMB insert machine)"},
@@ -541,7 +569,7 @@ local function inputs( name, dbl )
                     return true
                   end
                 else
-                  return true;
+                  return true
                 end
               end
             end
@@ -550,7 +578,6 @@ local function inputs( name, dbl )
       end
     end
   end
-  
   return false
 end
 
@@ -789,7 +816,7 @@ function machineView:loadColors(colorScheme)
     colors.buttonbg         = { 0.1, 0.1, 0.1, .7 }
     colors.buttonfg         = { 0.3, 0.9, 0.4, 1.0 }
     colors.connector        = { .2, .2, .2, 0.8 }   
-    colors.wireColor        = { .2, .2, .2, 0.8 }
+    colors.wireColor        = { .2, .2, .2, 0.95 }
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
     colors.inactiveColor    = { .6, .6, .6, 1.0 }
     colors.signalColor      = {1/256*129, 1/256*127, 1/256*105, 1}
@@ -805,14 +832,16 @@ function machineView:loadColors(colorScheme)
     colors.buttonbg         = { 0.1, 0.1, 0.1, .7 }
     colors.buttonfg         = { 0.3, 0.9, 0.4, 1.0 }
     colors.connector        = { .4, .4, .4, 0.8 }
-    colors.wireColor        = { .45, .45, .45, 0.8 }
+    colors.wireColor        = { .65, .65, .65, 0.95 }
     colors.muteColor        = { 0.9, 0.3, 0.4, 1.0 }
     colors.inactiveColor    = { .6, .6, .6, 1.0 } 
     colors.signalColor      = {37/256,111/256,222/256, 1.0}  
-    colors.selectionColor   = {.2, .2, .5, 1}        
+    colors.selectionColor   = {.2, 0.2, .5, 1}  
+    colors.selectionColor   = {.4, 0.2, .8, 1}
     colors.renameColor      = { 0.6, 0.3, 0.5, 1.0 }
     colors.playColor        = {0.3, 1.0, 0.4, 1.0}    
     colors.gridColor        = {0.35, 0.25, 0.53, 0.3}
+    colors.selectionColor   = {.2, .9, .5, 1} 
   end
   -- clear colour is in a different format
   gfx.clear = colors.windowbackground[1]*256+(colors.windowbackground[2]*256*256)+(colors.windowbackground[3]*256*256*256)
@@ -892,8 +921,13 @@ local function wrapPrint(str, maxlen, maxline)
   return outStr, line
 end
 
+local function clamp01(x)
+  return math.min(1, math.max(0, x))
+end
+
 local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignals, fgData, d, loc, N, rnc, hidden, selected, playColor, selectionColor, rec, center, solo )
   local gfx = gfx
+  local cfg = machineView.config
   
   local xmi = xtrafo( x - 0.5*w )
   local xma = xtrafo( x + 0.5*w )
@@ -901,6 +935,9 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   local yma = ytrafo( y + 0.5*h )
   local w = xma - xmi --zoom * w
   local h = zoom * h
+
+  gfx.set( 0, 0, 0, cfg.shadowAlpha )
+  gfx.rect(xmi+cfg.shadowOffset, ymi+cfg.shadowOffset, w, h)
 
   if ( solo ) then
     gfx.set( table.unpack(playColor) )
@@ -958,12 +995,7 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   gfx.line(xmi, yma, xma, yma)
   gfx.line(xmi, ymi, xmi, yma)
   gfx.line(xma, ymi, xma, yma)
-  gfx.set( 0, 0, 0, 0.3 )
-  gfx.line(xmi+1, yma+1, xma+1, yma+1)
-  gfx.line(xma+1, ymi+1, xma+1, yma+1)
-  gfx.line(xmi+2, yma+2, xma+2, yma+2)
-  gfx.line(xma+2, ymi+2, xma+2, yma+2)    
-
+  
   local c = recCornerSize
   if ( rec ) then
     gfx.set( table.unpack( rec ) )
@@ -999,45 +1031,69 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
 
     local xl = xtrafo(x) - 0.5*w + 4  
     local yl = ytrafo(y) - 0.18*h - math.max(0,(lines-1))*0.09*h
-    if ( fg[1] > 0.5 ) then
-      gfx.set( 0, 0, 0, .5 )
-    else
-      gfx.set( 1, 1, 1, .5 )    
+    
+    if ( cfg.textOutline == 1 ) then
+      if ( fg[1] > 0.5 ) then
+        gfx.set( 0, 0, 0, cfg.textOutlineAlpha )
+      else
+        gfx.set( 1, 1, 1, cfg.textOutlineAlpha )    
+      end
+      gfx.x = xl
+      gfx.y = yl - 1
+      gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+      gfx.x = xl
+      gfx.y = yl + 1
+      gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+      gfx.x = xl - 1
+      gfx.y = yl
+      gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+      gfx.x = xl + 1
+      gfx.y = yl
+      gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+      
+      gfx.x = xl - 1
+      gfx.y = yl - 1
+      gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+      gfx.x = xl + 1
+      gfx.y = yl + 1
+      gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+      gfx.x = xl - 1
+      gfx.y = yl + 1
+      gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+      gfx.x = xl + 1
+      gfx.y = yl - 1
+      gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
     end
-    gfx.x = xl
-    gfx.y = yl - 1
-    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
-    gfx.x = xl
-    gfx.y = yl + 1
-    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
-    gfx.x = xl - 1
-    gfx.y = yl
-    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
-    gfx.x = xl + 1
-    gfx.y = yl
-    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
     
-    gfx.x = xl - 1
-    gfx.y = yl - 1
-    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
-    gfx.x = xl + 1
-    gfx.y = yl + 1
-    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
-    gfx.x = xl - 1
-    gfx.y = yl + 1
-    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
-    gfx.x = xl + 1
-    gfx.y = yl - 1
-    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
-    
-    gfx.set( table.unpack(fg) )
-    gfx.x = xl
-    gfx.y = yl
-    gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+    if ( cfg.textOutline == 1 ) then
+      gfx.set( table.unpack(fg) )
+      gfx.x = xl
+      gfx.y = yl
+      gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+    elseif ( cfg.textOutline == 0 ) then
+      gfx.set( 1-bg[1], 1-bg[2], 1-bg[3], 1 )
+      gfx.x = xl
+      gfx.y = yl
+      gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
+    elseif ( cfg.textOutline == 2 ) then
+      if ( (bg[1]+bg[2]+bg[3])>1.5) then
+        gfx.set( 0, 0, 0, 1 )
+      else
+        gfx.set( 1, 1, 1, 1 )
+      end
+      gfx.x = xl
+      gfx.y = yl
+      gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 ) 
+    end
   end
-  
-  w2 = w2*zoom
-  h2 = h2*zoom
+
+  if ( cfg.muteButtonSize == 0 ) then
+    w2 = w2*zoom
+    h2 = h2*zoom
+  else
+    w2 = 2*cfg.muteButtonSize
+    h2 = cfg.muteButtonSize
+  end
   local xmi2 = xmi + xo
   local xma2 = xmi + xo + w2
   local ymi2 = ymi + yo
@@ -1045,7 +1101,11 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   gfx.set( table.unpack(playColor) ) 
   gfx.rect(xmi2, ymi2, w2 + 1, h2 + 1 )
   
-  gfx.set( table.unpack(fg) )    
+  if ( (bg[1]+bg[2]+bg[3])>1.5) then
+    gfx.set( 0, 0, 0, 1 )
+  else
+    gfx.set( 1, 1, 1, 1 )
+  end    
   gfx.line(xmi2, ymi2, xma2, ymi2)
   gfx.line(xmi2, yma2, xma2, yma2)
   gfx.line(xmi2, ymi2, xmi2, yma2)
@@ -1057,11 +1117,15 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   end  
   
   if ( selected > 0 ) then
-    gfx.set(0,0,0,.1)
+    if ( night == 1 ) then
+      gfx.set(clamp01(bg[1]+.25), clamp01(bg[1]+.25), clamp01(bg[1]+.35), .1)
+    else
+      gfx.set(0, 0, 0, .1)
+    end
     local nmax = 8
     local mi1 = xmi + .1 * w
     local mi2 = xmi
-    local xxm = 2*xma-1.05*w
+    local xxm = 2*xma-1*w
     for i=1,nmax do
       gfx.triangle(xmi, ymi, mi1, ymi, xmi, yma, mi2, yma)
       gfx.triangle(xma, ymi, xxm-mi1, yma, xma, yma, xxm-mi2, ymi)
@@ -1379,6 +1443,21 @@ function dial.create(parent, x, y, c, c2, getval, setval, disp, fg, bg, default)
     if ( shift > 0 ) then shift = true else shift = false end
 
     local ctime = reaper.time_precise()
+
+    if ( math.abs(gfx.mouse_wheel) > 0 ) then      
+      if ( self:checkHit( x, y ) ) then 
+        local spd = 0.00045
+        if ( gfx.mouse_cap & 4 > 0 ) then
+          spd = spd / 5
+        end
+        if ( gfx.mouse_cap & 8 > 0 ) then
+          spd = spd / 10
+        end  
+        self.val = self.val + spd*gfx.mouse_wheel
+        gfx.mouse_wheel = 0
+        return true
+      end
+    end
 
     -- LMB
     if ( lmb ) then
@@ -1870,7 +1949,6 @@ function sink.create(viewer, track, idx, sinkData, offset)
   self.GUID           = sinkData.GUID
   self.type           = sinkData.sinkType
   self.color          = colors.connector
-  self.wireColor      = colors.wireColor
   self.offset         = offset
 
   -- Calculate the edges of the triangle between this block and the block this block
@@ -1906,11 +1984,12 @@ function sink.create(viewer, track, idx, sinkData, offset)
     local y3    = other.y - sny
     local x4    = other.x + snx
     local y4    = other.y + sny
-    
+        
     return { 
       { alocx + nx,           alocy + ny },
       { alocx - .5 * nx + ny, alocy - .5 * ny - nx },
-      { alocx - .5 * nx - ny, alocy - .5 * ny + nx }
+      { alocx - .5 * nx - ny, alocy - .5 * ny + nx },
+      { alocx - .5 * nx, alocy - .5 * ny }
     }, { 
       { x1, y1 },
       { x3, y3 },
@@ -1920,7 +1999,15 @@ function sink.create(viewer, track, idx, sinkData, offset)
       { x1, y1 },
       { x3, y3 }
     }
-  end  
+  end   
+  
+  self.getSourceGUID = function(self)
+    return self.from
+  end
+  
+  self.getTargetGUID = function(self)
+    return self.GUID
+  end
   
   self.update = function(self)
     self.indicatorPoly, self.linePoly1, self.linePoly2  = self:calcIndicatorPoly()
@@ -1932,17 +2019,27 @@ function sink.create(viewer, track, idx, sinkData, offset)
   end
   
   self.draw = function(self)
+    local cfg = machineView.config
     if ( hideWires == 1 ) then
       return
     end
   
-    gfx.set( table.unpack( self.wireColor ) )
+    local wireColor = colors.wireColor
+    gfx.set( table.unpack( wireColor ) )
     local other = self.other
     local this  = self.this
+    
+    local alpha = wireColor[4]
+    if ( self.type == 1 ) then
+       alpha = cfg.sendAlpha * wireColor[4]
+    elseif ( self.type == 2 ) then
+       alpha = cfg.parentAlpha * wireColor[4]    
+    end
     
     if ( this.hidden == 0 or (showHidden == 1) ) then
       local indicatorPoly = self.indicatorPoly
       if ( self:arrowVisible() ) then
+        gfx.a = alpha
         wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[2][1], indicatorPoly[2][2] )
         wgfx.line( indicatorPoly[2][1], indicatorPoly[2][2], indicatorPoly[3][1], indicatorPoly[3][2] )
         wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], indicatorPoly[3][1], indicatorPoly[3][2] )
@@ -1952,7 +2049,9 @@ function sink.create(viewer, track, idx, sinkData, offset)
         wgfx.thickline( this.x, this.y, other.x, other.y, .75, 5, colors.selectionColor )
       else
         if ( hideWires == 0 or (hideWires == 2 and self.accent == 2) ) then
-          wgfx.line( this.x, this.y, other.x, other.y )
+          gfx.a = alpha
+          wgfx.line( this.x, this.y, self.indicatorPoly[4][1], self.indicatorPoly[4][2] )
+          wgfx.line( indicatorPoly[1][1], indicatorPoly[1][2], other.x, other.y )
         end
       end
     end
@@ -1973,7 +2072,9 @@ function sink.create(viewer, track, idx, sinkData, offset)
     
   self.checkMouse = function(self, x, y, lx, ly, lastcapture, lmb, rmb, mmb)
     if ( self:checkHit( x, y ) ) then
-      self.accent = 1
+      if ( machineView.lastOver == nil ) then
+        self.accent = 1
+      end
       machineView.lastOver = self.GUID
       if ( inputs('openSinkControl') or inputs('openSinkControl2') ) then      
         if ( not self.ctrls ) then
@@ -2017,6 +2118,26 @@ function block.create(track, x, y, config, viewer)
   self.renaming = 0
   self.lavg = 0
   self.ravg = 0  
+  
+  self.getParents = function(self)
+    return self.parents
+  end
+  
+  self.clearParents = function(self)
+    self.parents = {}
+  end
+  
+  self.addParent = function(self, GUID, obj)
+    self.parents[GUID] = obj
+  end
+  
+  self.getParents = function(self)
+    return self.parents
+  end
+  
+  self.getColor = function(self)
+    return reaper.GetTrackColor(self.track)
+  end
   
   self.loadColors = function(self)
     local FG = { colors.textcolor[1], colors.textcolor[2], colors.textcolor[3], colors.textcolor[4] }
@@ -2691,14 +2812,24 @@ function block.create(track, x, y, config, viewer)
   end
   
   function self.checkMute(self, x, y)
+    local cfg = machineView.config
+    
     if ( not x or not y ) then
       return false
     end
 
+    local w2, h2
+    if ( cfg.muteButtonSize == 0 ) then
+      w2 = self.w2
+      h2 = self.h2
+    else
+      w2 = 2*cfg.muteButtonSize / zoom
+      h2 = cfg.muteButtonSize / zoom
+    end
     local xmi = self.x - .5 * self.w + self.xo/zoom
-    local xma = self.x - .5 * self.w + self.xo/zoom + self.w2
+    local xma = self.x - .5 * self.w + self.xo/zoom + w2
     local ymi = self.y - .5 * self.h + self.yo/zoom
-    local yma = self.y - .5 * self.h + self.yo/zoom + self.h2
+    local yma = self.y - .5 * self.h + self.yo/zoom + h2
     
     if ( x > xmi and x < xma ) then
       if ( y > ymi and y < yma ) then
@@ -3194,8 +3325,45 @@ function machineView:highlightRecursively(track, value)
   end
 end
 
-function machineView:drawHighlightedSignal(mx, my)
+function machineView:buildReverseTree()
+  -- Clear parents
+  for i,v in pairs( self.tracks ) do
+    v:clearParents()
+  end
+  for i,v in pairs( self.tracks ) do
+    for j,w in pairs( v.sinks ) do
+      self.tracks[w:getTargetGUID()]:addParent(j,w)
+    end
+  end
+end
+
+function machineView:highlightRecursivelyReverse(track, value)
+  for i,v in pairs( track:getParents() ) do
+    if ( not v.accent ) then
+      v.accent = value or 1
+      self:highlightRecursivelyReverse( self.tracks[v:getSourceGUID()], value )
+    end
+  end
+end
+
+
+function machineView:drawHighlightedSignal(mx, my, reverse)
   local over
+  local signalCables
+  local highlightFn
+  local hoverMode
+  
+  if ( reverse == 1 ) then
+    self:buildReverseTree()
+    signalCables = 'parents'
+    highlightFn = self.highlightRecursivelyReverse
+    hoverMode = 1
+  else
+    signalCables = 'sinks';
+    highlightFn = self.highlightRecursively
+    hoverMode = 2
+  end
+  
   if ( hideWires == 0 ) then
     for i,v in pairs( self.tracks ) do
       if v:checkHit( mx, my ) then
@@ -3203,22 +3371,27 @@ function machineView:drawHighlightedSignal(mx, my)
         break;
       end
     end
-    if ( self.lastOver ~= over ) then
+    if ( self.lastOver ~= over or self.lastHoverMode ~= hoverMode ) then
       for i,v in pairs(self.tracks) do
+        if ( v.parents ) then
+          for j,w in pairs(v.parents) do
+            w.accent = nil
+          end
+        end
         for j,w in pairs(v.sinks) do
           w.accent = nil
         end
       end
       -- Trace the signal
       if ( over ) then
-        self:highlightRecursively(over)
+        highlightFn(self, over)
       end
     end
   else
     local found
     for i,v in pairs(self.tracks) do
-      for j,w in pairs(v.sinks) do
-        if ( w:checkHit(mx, my) ) then
+      for j,w in pairs(v[signalCables]) do
+        if ( w:checkHit(mx, my) and not over ) then
           found = w
         end
         w.accent = nil
@@ -3226,6 +3399,7 @@ function machineView:drawHighlightedSignal(mx, my)
       
       if v:checkHit( mx, my ) then
         over = v
+        found = nil
       end
     end
     
@@ -3233,7 +3407,7 @@ function machineView:drawHighlightedSignal(mx, my)
       -- Trace the selected ones
       for i,v in pairs(self.tracks) do
         if v.selected == 1 then
-          self:highlightRecursively(v, 2)
+          highlightFn(self, v, 2)
         end
       end
       found.accent = 1
@@ -3241,17 +3415,18 @@ function machineView:drawHighlightedSignal(mx, my)
       -- Trace the selected ones
       for i,v in pairs(self.tracks) do
         if v.selected == 1 then
-          self:highlightRecursively(v)
+          highlightFn(self, v)
         end
       end
     end
   end
   
   if ( over ) then
-    self:highlightRecursively(over)
+    highlightFn(self,over)
   end
   
   self.lastOver = over
+  self.lastHoverMode = hoverMode
 end
 
 local function findCommandID(name)
@@ -3565,8 +3740,12 @@ local function updateLoop()
       
       local mx = ( gfx.mouse_x - origin[1]) / zoom
       local my = ( gfx.mouse_y - origin[2]) / zoom
-      
-      self:drawHighlightedSignal(mx, my)
+            
+      if ( inputs('reverseMod') ) then
+        self:drawHighlightedSignal(mx, my, 1)      
+      else
+        self:drawHighlightedSignal(mx, my, 0)
+      end
           
       -- Prefer last object that was captured
       if ( self.lastCapture ) then
@@ -3659,7 +3838,9 @@ local function updateLoop()
         end
       end
     
-      self:handleZoom(mx, my)
+      if ( not captured ) then
+        self:handleZoom(mx, my)
+      end
       self:handleDrag()
     
       if ( self.iter and self.iter > 0 ) then
@@ -3721,7 +3902,8 @@ local function updateLoop()
           self:hideMachines()
         elseif ( inputs('simulate') ) then
           self:pushPositions()
-          self.iter = 10
+          self.iter = math.min( 35, (self.iter or 1)+10 )
+          self:buildColorTable()
         elseif ( inputs('help') ) then
           self.help = 1
         elseif ( inputs('recGroup') ) then
@@ -3810,6 +3992,8 @@ local function updateLoop()
           end
         elseif ( inputs('customizeMachines') ) then
           launchTextEditor( getFXListFn() )
+        elseif ( inputs('editConfig') ) then
+          launchTextEditor( getConfigFn() )
         elseif ( inputs('fitMachines') ) then
           self:fitMachines()
         elseif ( inputs('movetcp') ) then
@@ -3854,6 +4038,9 @@ end
 
 function machineView:terminate()
   self:storePositions()
+  
+  local filename = getConfigFn()
+  saveCFG(filename, self.config)
 end
 
 function machineView:updateGridSize()
@@ -3863,7 +4050,7 @@ function machineView:updateGridSize()
   else
     self.config.gridx = 0.5 * self.config.blockWidth
     self.config.gridy = 0.5 * self.config.blockHeight
-  end
+  end  
 end
 
 function machineView:updateGUI()
@@ -4034,7 +4221,71 @@ function machineView:fitMachines()
   origin[2] = .5*gfx.h - 0.5 * (maxy+miny) * zoom
 end
 
+function machineView:countDownward(order)
+  local penalty = 0
+  for i,v in pairs(order) do
+    if ( v.sinks ) then
+      for j,w in pairs(v.sinks) do
+        local found = nil
+        for k,x in pairs(order) do
+          if ( x == self.tracks[w:getTargetGUID()] ) then
+            found = 1
+          end
+        end
+        if ( found ) then
+          local y2 = self.tracks[w:getTargetGUID()].y
+          local y1 = self.tracks[w:getSourceGUID()].y
+          if y2 < y1 then
+            penalty = penalty + 1
+          end
+          if ( math.abs(y2 - y1) > ( self.linearyspacing ) ) then
+            penalty = penalty + 2
+          end
+          found = nil
+        end
+      end
+    else
+      print("Did not find sink")
+    end
+  end
+  
+  return penalty
+end
+
+local function swap(t, idx1, idx2)
+  local tmp = t[idx1]
+  t[idx1] = t[idx2]
+  t[idx2] = tmp
+  return t
+end
+
+local function copy1(t)
+  local copy = {}
+  for i,v in pairs(t) do
+    copy[i] = v
+  end
+  
+  return copy
+end
+
+function machineView:placeGroup(x, grp)
+  local y = 0
+  if ( grp.master ) then
+    grp.master.x = x
+    grp.master.y = y
+    y = y + self.linearyspacingtop
+  end    
+  for j,trk in pairs( grp.tracks ) do
+    if ( trk ~= grp.master ) then
+      trk.x = x
+      trk.y = y
+      y = y + self.linearyspacing
+    end
+  end
+end
+
 function machineView:forceLinear()
+  local cfg = machineView.config
   local groups = {}
   local master
   local nGroups = 0
@@ -4058,22 +4309,56 @@ function machineView:forceLinear()
       master = v
     end
   end
-    
+
+  -- Exhaustively list how many times the sinks change y direction (for sorting)
+  local lastBest = 1000000
+  if ( cfg.rowSortMethod == 1 ) then
+    local opt
+    for i,grp in pairs( groups ) do
+      local c = {}
+      local n = #grp.tracks+1
+
+      for j=1,n do
+          c[j] = 1
+      end
+  
+      self:placeGroup(1000, grp)  
+      lastBest = self:countDownward(grp.tracks)
+      opt = copy1(grp.tracks)
+      
+      local j = 1
+      local iter = 0
+      local maxiter = 1000
+      while (j < n) and (iter < maxiter) do
+        if c[j] < j then
+          if math.floor(j*.5) == j*.5 then
+            grp.tracks = swap(grp.tracks, 1, j)
+          else
+            grp.tracks = swap(grp.tracks, c[j], j)
+          end
+          
+          self:placeGroup(1000, grp)
+          local penalty = self:countDownward(grp.tracks)
+          if ( penalty < lastBest ) then
+            opt = copy1(grp.tracks)
+            lastBest = penalty
+          end
+          
+          c[j] = c[j] + 1
+          j = 1
+        else
+          c[j] = 1
+          j = j + 1
+        end
+        iter = iter + 1
+      end
+      grp.tracks = opt
+    end
+  end
+
   local x = - math.floor(nGroups*0.5) * 150
   for i,grp in pairs( groups ) do
-    local y = 0
-    if ( grp.master ) then
-      grp.master.x = x
-      grp.master.y = y
-      y = y + self.linearyspacingtop
-    end    
-    for j,trk in pairs( grp.tracks ) do
-      if ( trk ~= grp.master ) then
-        trk.x = x
-        trk.y = y
-        y = y + self.linearyspacing
-      end
-    end
+    self:placeGroup(x, grp)
     x = x + self.linearxspacing
   end
   master.x = x-self.linearxspacing
@@ -4105,9 +4390,70 @@ function machineView:distribute(onlyFree)
   end
 end
 
+function machineView:colorSimilarity(a, b)
+  local acc = 0
+  for i,v in pairs(a.colorScore) do
+    local res = v - b.colorScore[i]
+    acc = acc + res*res
+  end
+  
+  return 1-.5*acc
+end
+
+-- Build a color index to determine similarities between nodes
+-- Every node has a color, which goes in with weight W
+-- Then every signal cable contributes color from other nodes.
+-- This allows data to be sorted in a more clustered fashion later.
+function machineView:buildColorTable()
+  -- Build color structure
+  for i,v in pairs(self.tracks) do
+    v.colorScore = {}
+    for j,w in pairs(palette.colors) do
+      v.colorScore[j] = 0
+    end
+    v.colorScore[v:getColor()] = 5
+  end
+  for i,v in pairs(self.tracks) do
+    myColor = v:getColor()
+    for j,w in pairs(v.sinks) do
+      local targetTrack = self.tracks[w:getTargetGUID()]
+      
+      if ( targetTrack.colorScore[myColor] ) then
+        targetTrack.colorScore[myColor] = targetTrack.colorScore[myColor] + 1
+      else
+        targetTrack.colorScore[myColor] = 1
+      end
+    end
+  end
+  
+  -- Normalize color scores
+  for i,v in pairs(self.tracks) do
+    local sum = 0
+    for j,w in pairs(v.colorScore) do
+      sum = sum + w
+    end
+    for j,w in pairs(v.colorScore) do
+      v.colorScore[j] = w / sum
+    end
+  end
+  
+  cSim = {}
+  for i,v in pairs(self.tracks) do
+    cSim[v] = {}
+    for j,w in pairs(self.tracks) do
+      cSim[v][w] = self:colorSimilarity(v, w)
+    end
+  end
+  
+  self.cSim = cSim
+end
+
+
 function machineView:calcForces()
-  local w = .5*self.config.blockWidth
-  local h = .5*self.config.blockHeight
+  local cDiffs = self.cDiffs
+  local bw = .5*self.config.blockWidth
+  local bh = .5*self.config.blockHeight
+  local bwsq = bw*bw
 
   local fx = {}
   local fy = {}
@@ -4121,10 +4467,14 @@ function machineView:calcForces()
   local xx, xy, sx, sy, rx, ry
   local k = 3e-2
   local Q = 5.3e2
+  local N = 0
   for i,v in pairs( self.tracks ) do
+    N = N + 1
     xx = v.x
     xy = v.y
     
+    local nSinks = #v.sinks
+    local kc = k/(nSinks+1)
     for j,w in pairs( v.sinks ) do
       sx = self.tracks[w.GUID].x
       sy = self.tracks[w.GUID].y
@@ -4133,10 +4483,10 @@ function machineView:calcForces()
       ry = sy - xy
       
       -- Spring
-      fx[i] = fx[i] + k*rx
-      fy[i] = fy[i] + k*ry
-      fx[w.GUID] = fx[w.GUID] - k*rx
-      fy[w.GUID] = fy[w.GUID] - k*ry
+      fx[i] = fx[i] + kc*rx
+      fy[i] = fy[i] + kc*ry
+      fx[w.GUID] = fx[w.GUID] - kc*rx
+      fy[w.GUID] = fy[w.GUID] - kc*ry
     end
     
     -- Connect to the master, because otherwise unconnected stuff would just float away
@@ -4156,9 +4506,11 @@ function machineView:calcForces()
       fx[masterGUID] = fx[masterGUID] + k*rx
       fy[masterGUID] = fy[masterGUID] + k*ry
     end
-  end
+  end  
   
   local QQ = .01 * Q
+  local nt = #self.tracks
+  local qk = k / (N*N)
   for i,v in pairs( self.tracks ) do
     for j,w in pairs( self.tracks ) do
       if ( v ~= w ) then
@@ -4166,28 +4518,40 @@ function machineView:calcForces()
         xy = v.y
         sx = w.x
         sy = w.y
-        
+                        
         rx = sx - xx
         ry = sy - xy
+        
+        local dist = ( rx*rx + ry*ry )
+        
+        if ( dist < 2*bwsq ) then
+          dist = dist*4
+        end
 
-        local F = Q / ( rx*rx + ry*ry )
+        local F = 2*Q / dist
+        local cSim = cSim[v][w]
+        fx[i] = fx[i] + qk * rx * cSim * 75
+        fy[i] = fy[i] + qk * ry * cSim * 75
         
         fx[i] = fx[i] - F * rx
         fy[i] = fy[i] - F * ry
       end
     end
-    if v.x > (gfx.w-w) then
+    fx[i] = fx[i] + 3*(math.random()-.5)*math.min(20, (self.iter or 1))
+    fy[i] = fy[i] + 3*(math.random()-.5)*math.min(20, (self.iter or 1))
+    
+    if v.x > (gfx.w-bw) then
       fx[i] = fx[i] - QQ
     end
-    if v.x < w then
+    if v.x < bw then
       fx[i] = fx[i] + QQ
     end
-    if v.y > (gfx.h-h) then
+    if v.y > (gfx.h-bh) then
       fy[i] = fy[i] - QQ
     end
-    if v.y < h then
+    if v.y < bh then
       fy[i] = fy[i] + QQ
-    end    
+    end
   end
   
   -- Don't move things without attachments
@@ -4414,9 +4778,8 @@ function loadCFG(fn, cfg)
       io.input(file)
       local str = io.read()
       while ( str ) do
-        for k, v in string.gmatch(str, "(%w+)=(%w+)") do
+        for k, v in string.gmatch(str, "(%w+)=(%w+%.*%w*)") do
           local no = tonumber(v)
-        
           if ( no ) then
             cfg[k] = no
           else
@@ -4626,7 +4989,8 @@ function machineView:loadPositions()
     end
     
     self.iterFree = 50
-  end  
+  end
+  self:buildColorTable()
 end
 
 palette:init()
