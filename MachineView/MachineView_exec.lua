@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.68
+@version 0.69
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.69 (2018-12-16)
+   + Show small metering in channel control window.
+   + Exposed noise floor that is used in metering in config file
  * v0.68 (2018-12-16)
    + Bugfixes VCA handling (nil on master without slaves).
    + Added option to manipulate master volume and panning of tracks with no sends.
@@ -230,7 +233,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.68"
+scriptName = "Hackey Machines v0.69"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -254,6 +257,8 @@ machineView.config.textOutlineAlpha = 0.5
 machineView.config.muteButtonSize = 0
 machineView.config.sendAlpha = .4
 machineView.config.parentAlpha = 1
+machineView.config.noiseFloor = 36
+machineView.config.metering = 1
 
 machineView.config.muteOrigX = 4
 machineView.config.muteOrigY = 4
@@ -743,6 +748,30 @@ end
 
 function machineView:printMessage( msg )
   messages[#messages+1] = { self.config.msgTime, msg }
+end
+
+function machineView:dbToDisplay( peak )
+  local noiseFloor = self.config.noiseFloor
+  peak = math.max(-noiseFloor, math.min(0, peak))
+  peak = (peak + noiseFloor)/noiseFloor
+  
+  return peak
+end
+
+local function plotVU(peak, x, y, h)
+    peak = 8.6562*math.log(peak)
+    peak = machineView:dbToDisplay( peak )
+    peak = math.floor(peak * h)
+    local xc = x
+    local yc = y + h
+    local dc = 2 / h
+    local cc = 0
+    for i = 1,peak,2 do
+      gfx.set(1, 1-cc, .1*cc, 1)
+      gfx.line( xc, yc, xc + 2, yc )
+      yc = yc - 2
+      cc = cc + dc
+    end
 end
 
 function machineView:drawMessages(t)
@@ -1694,17 +1723,42 @@ function box_ctrls.create(viewer, x, y, track, parent, forceBig)
   self.draw = function( self )
     local x = self.x
     local y = self.y
+    local offsetX = self.offsetX
+    local offsetY = self.offsetY
+    local xc = self.x + offsetX
+    local yc = self.y + offsetY
+    local xe = xc + self.vW
+    local ye = yc + self.vH
     gfx.set( table.unpack(self.color) )
     gfx.rect( x + self.offsetX, y + self.offsetY, self.vW, self.vH )
     gfx.set( table.unpack(self.edge) )
-    gfx.line( x + self.offsetX,           y + self.offsetY,           x + self.offsetX + self.vW,  y + self.offsetY )
-    gfx.line( x + self.offsetX + self.vW, y + self.offsetY,           x + self.offsetX + self.vW,  y + self.offsetY + self.vH )    
-    gfx.line( x + self.offsetX,           y + self.offsetY + self.vH, x + self.offsetX + self.vW,  y + self.offsetY + self.vH )
-    gfx.line( x + self.offsetX,           y + self.offsetY,           x + self.offsetX,            y + self.offsetY + self.vH )    
+    gfx.line( xc, yc, xe, yc )
+    gfx.line( xe, yc, xe, ye )    
+    gfx.line( xc, ye, xe, ye )
+    gfx.line( xc, yc, xc, ye )    
     
     for i,v in pairs(self.ctrls) do
       v:draw()
     end
+    
+    -- METERING
+    if ( machineView.config.metering == 1 ) then
+      local peakleft = reaper.Track_GetPeakInfo(self.track, 0)
+      local peakright = reaper.Track_GetPeakInfo(self.track, 1)
+      
+      local pW = 10
+      gfx.set( table.unpack(self.color) )
+      xc = xc + vW
+      gfx.rect( xc + 1, y + self.offsetY, 12, self.vH )
+      gfx.set( table.unpack(self.edge) )
+      gfx.line( xc,           yc,           xc + pW,  yc )
+      gfx.line( xc + pW,      yc,           xc + pW,  ye )    
+      gfx.line( xc,           ye,           xc + pW,  ye )
+      gfx.line( xc,           yc,           xc,       ye )  
+      
+      plotVU(peakleft,  x + offsetX + vW + 2, y + offsetY + 2, vH-4)
+      plotVU(peakright, x + offsetX + vW + 6, y + offsetY + 2, vH-4)
+    end    
   end  
   
   self.checkHit = function( self, x, y )
@@ -1751,7 +1805,6 @@ function box_ctrls.create(viewer, x, y, track, parent, forceBig)
   
   return self
 end
-
 
 ---------------------------------------
 -- SINK CTRLS
@@ -1887,16 +1940,55 @@ function sink_ctrls.create(viewer, x, y, loc)
   self.draw = function( self )
     local x = self.x
     local y = self.y
+    local vW = self.vW
+    local vH = self.vH
+    local offsetX = self.offsetX
+    local offsetY = self.offsetY
+    local xc = x + offsetX
+    local yc = y + offsetY
+    local xe = xc + vW
+    local ye = yc + vH
     gfx.set( table.unpack(self.color) )
     gfx.rect( x + self.offsetX, y + self.offsetY, self.vW, self.vH )
     gfx.set( table.unpack(self.edge) )
-    gfx.line( x + self.offsetX,           y + self.offsetY,           x + self.offsetX + self.vW,  y + self.offsetY )
-    gfx.line( x + self.offsetX + self.vW, y + self.offsetY,           x + self.offsetX + self.vW,  y + self.offsetY + self.vH )    
-    gfx.line( x + self.offsetX,           y + self.offsetY + self.vH, x + self.offsetX + self.vW,  y + self.offsetY + self.vH )
-    gfx.line( x + self.offsetX,           y + self.offsetY,           x + self.offsetX,            y + self.offsetY + self.vH )    
+    gfx.line( xc, yc, xe, yc )
+    gfx.line( xe, yc, xe, ye )    
+    gfx.line( xc, ye, xe, ye )
+    gfx.line( xc, yc, xc, ye )    
     
     for i,v in pairs(self.ctrls) do
       v:draw()
+    end
+    
+    -- METERING
+    if ( machineView.config.metering == 1 ) then
+      local peakleft = reaper.Track_GetPeakInfo(loc.track, 0)
+      local peakright = reaper.Track_GetPeakInfo(loc.track, 1)
+      
+      local vol, pan
+      if ( loc.sendidx < 0 ) then
+        -- Already taken into account in the peak info in this case!
+        vol = 1 --reaper.GetMediaTrackInfo_Value(loc.track, "D_VOL")
+        pan = 0  --reaper.GetMediaTrackInfo_Value(loc.track, "D_PAN")
+      else
+        vol = reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL")
+        pan = reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN")
+      end
+      
+      local pW = 10
+      gfx.set( table.unpack(self.color) )
+      gfx.rect( x + self.offsetX + vW + 1, y + self.offsetY, 12, self.vH )
+      local xc = x + offsetX + vW
+      local yc = y + offsetY
+      gfx.set( table.unpack(self.edge) )
+      gfx.line( xc,      yc, xc + pW, yc )
+      gfx.line( xc + pW, yc, xc + pW, ye )    
+      gfx.line( xc,      ye, xc + pW, ye )
+      gfx.line( xc,      yc, xc,      ye )  
+      
+      local hp = .5*(pan+1);
+      plotVU(peakleft  * vol * (1-hp),  x + offsetX + vW + 2, y + offsetY + 2, vH-4)
+      plotVU(peakright * vol * hp, x + offsetX + vW + 6, y + offsetY + 2, vH-4)
     end
   end
   
@@ -2403,13 +2495,7 @@ function block.create(track, x, y, config, viewer)
         peak = 0
       end
       
-      local noiseFloor = 36
-      if ( peak > 0 ) then
-        peak = 0;
-      elseif ( peak < -noiseFloor ) then
-        peak = -noiseFloor
-      end
-      peak = 1-(peak + noiseFloor)/noiseFloor
+      peak = 1 - machineView:dbToDisplay(peak)
       self.playColor[4] = 1-peak
       
       -- Keep circular buffer of signal
