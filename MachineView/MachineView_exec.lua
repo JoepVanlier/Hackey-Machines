@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.67
+@version 0.68
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.68 (2018-12-16)
+   + Bugfixes VCA handling (nil on master without slaves).
+   + Added option to manipulate master volume and panning of tracks with no sends.
  * v0.67 (2018-12-16)
    + First attempt at VCA handling.
  * v0.66 (2018-12-15)
@@ -227,7 +230,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.67"
+scriptName = "Hackey Machines v0.68"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -336,6 +339,7 @@ local function initializeKeys( keymap )
   keys.toggleTrackColors  = {        2,    2,    2,    2,     0,     0,      0,      6697265 }      -- toggle track colors (F11)
   keys.toggleKeymap       = {        2,    2,    2,    2,     0,     0,      0,      6697266 }      -- toggle key map (F12)  
   keys.reverseMod         = {        0,    0,    0,    2,     0,     1,      0,      nil }          -- alt
+  keys.forcebig           = {        2,    2,    2,    2,     1,     0,      0,      nil }          -- ctrl
   
   help = {
     {"Shift drag machine", "Connect machines"},    
@@ -347,6 +351,7 @@ local function initializeKeys( keymap )
     {"Shift + Ctrl + drag on dial", "Change setting (50x slower)"},
     {"Ctrl click machine", "Select multiple machines"},
     {"Right click machine", "Solo, mute, rename, duplicate or remove machine"},
+    {"Ctrl + right click on machine", "Open properties with volume and pan control for master send"},
     {"Right click background", "Insert machine from user menu (F10 to customize)"},
     {"Shift + right click background", "Insert machine from reaper wide categories"},  
     {"Middle click object", "Delete signal cable or machine"},
@@ -1517,7 +1522,7 @@ end
 -- BOX CTRLS
 ---------------------------------------
 box_ctrls = {}
-function box_ctrls.create(viewer, x, y, track, parent)
+function box_ctrls.create(viewer, x, y, track, parent, forceBig)
   local self  = {}
   self.x      = x
   self.y      = y
@@ -1526,7 +1531,8 @@ function box_ctrls.create(viewer, x, y, track, parent)
   self.color  = { 0.103, 0.103, 0.103, 0.9 }
   self.edge   = { 0.203, 0.23, 0.13, 0.9 }  
   self.parent = parent
-  
+    
+  self.forceBig = forceBig
   self.offsetX  = -20
   self.offsetY  = -20
   self.vW       = 110
@@ -1614,23 +1620,76 @@ function box_ctrls.create(viewer, x, y, track, parent)
     self.viewer:storePositions()
   end
 
-  self.ctrls[1] = button.create(self, .2*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, soloCallback, soloUpdate)
-  self.ctrls[1].label = "SOLO"
-
-  self.ctrls[2] = button.create(self, .50*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, muteCallback, muteUpdate, colors.muteColor)
-  self.ctrls[2].label = "MUTE"
-
-  self.ctrls[3] = button.create(self, .8*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, killCallback)
-  self.ctrls[3].label = "DEL"
-
-  self.ctrls[4] = button.create(self, .50*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, duplicateCallback)
-  self.ctrls[4].label = "DUP"
+  if ( (self.parent:sinkCount() > 0) and not self.forceBig ) then
+    self.vW       = 110
+    self.vH       = 80
+    
+    self.ctrls[1] = button.create(self, .2*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, soloCallback, soloUpdate)
+    self.ctrls[1].label = "SOLO"
   
-  self.ctrls[5] = button.create(self, .2*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, renameCallback)
-  self.ctrls[5].label = "REN"
+    self.ctrls[2] = button.create(self, .50*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, muteCallback, muteUpdate, colors.muteColor)
+    self.ctrls[2].label = "MUTE"
   
-  self.ctrls[6] = button.create(self, .8*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, hideCallback, hideUpdate)
-  self.ctrls[6].label = "HIDE"  
+    self.ctrls[3] = button.create(self, .8*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, killCallback)
+    self.ctrls[3].label = "DEL"
+  
+    self.ctrls[4] = button.create(self, .50*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, duplicateCallback)
+    self.ctrls[4].label = "DUP"
+    
+    self.ctrls[5] = button.create(self, .2*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, renameCallback)
+    self.ctrls[5].label = "REN"
+    
+    self.ctrls[6] = button.create(self, .8*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, hideCallback, hideUpdate)
+    self.ctrls[6].label = "HIDE"
+  else
+    self.inner    = .16*80
+    self.outer    = .2*80
+    self.vW       = 110
+    self.vH       = 120
+    local vH      = self.vH
+    local vW      = self.vW
+
+    -- Setter and getter lambdas
+    local track   = self.parent.track
+    local getVol  = function()     return reaper.GetMediaTrackInfo_Value(track, "D_VOL")/2 end
+    local getPan  = function()     return (reaper.GetMediaTrackInfo_Value(track, "D_PAN")+1)*.5 end
+    local setVol  = function(val)  return reaper.SetMediaTrackInfo_Value(track, "D_VOL", val*2) end
+    local setPan  = function(val)  return reaper.SetMediaTrackInfo_Value(track, "D_PAN", val*2-1) end
+    local dispVol = function(val)  return string.format("%.1f",20*math.log(val*2)/math.log(10)) end
+    local dispPan = function(val) 
+      if ( val > 0.501 ) then
+        return string.format("%2dR",math.ceil(200*(val-0.5)))
+      elseif ( val < 0.499 ) then
+        return string.format("%2dL",math.floor(200*(0.5-val)))
+      else
+        return string.format("C",math.floor(200*(0.5-val)))    
+      end
+    end
+  
+    self.ctrls[1] = dial.create(self, .2*vW + self.offsetX, .185*vH + self.offsetY, self.inner, self.outer, getVol, setVol, dispVol)
+    self.ctrls[1].label = "V"
+    self.ctrls[2] = dial.create(self, .55*vW + self.offsetX, .185*vH + self.offsetY, self.inner, self.outer, getPan, setPan, dispPan)
+    self.ctrls[2].label = "P"
+    self.ctrls[2].drawFromCenter = 1  
+  
+    self.ctrls[3] = button.create(self, .2*vW + self.offsetX, .52*vH + self.offsetY, .16*80, .2*80, soloCallback, soloUpdate)
+    self.ctrls[3].label = "SOLO"
+  
+    self.ctrls[4] = button.create(self, .50*vW + self.offsetX, .52*vH + self.offsetY, .16*80, .2*80, muteCallback, muteUpdate, colors.muteColor)
+    self.ctrls[4].label = "MUTE"
+  
+    self.ctrls[5] = button.create(self, .8*vW + self.offsetX, .82*vH + self.offsetY, .16*80, .2*80, killCallback)
+    self.ctrls[5].label = "DEL"
+  
+    self.ctrls[6] = button.create(self, .50*vW + self.offsetX, .82*vH + self.offsetY, .16*80, .2*80, duplicateCallback)
+    self.ctrls[6].label = "DUP"
+    
+    self.ctrls[7] = button.create(self, .2*vW + self.offsetX, .82*vH + self.offsetY, .16*80, .2*80, renameCallback)
+    self.ctrls[7].label = "REN"
+    
+    self.ctrls[8] = button.create(self, .8*vW + self.offsetX, .52*vH + self.offsetY, .16*80, .2*80, hideCallback, hideUpdate)
+    self.ctrls[8].label = "HIDE"  
+  end
   
   self.draw = function( self )
     local x = self.x
@@ -2120,6 +2179,16 @@ function block.create(track, x, y, config, viewer)
   self.renaming = 0
   self.lavg = 0
   self.ravg = 0  
+  
+  self.sinkCount = function(self)
+    local N=0
+    if ( self.sinks ) then
+      for i,v in pairs( self.sinks ) do
+        N = N + 1
+      end
+    end
+    return N
+  end
   
   self.getParents = function(self)
     return self.parents
@@ -2653,7 +2722,11 @@ function block.create(track, x, y, config, viewer)
             end
             return true
           else
-            self.ctrls = box_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.track, self )
+            if ( inputs('forcebig') ) then
+              self.ctrls = box_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.track, self, 1 )
+            else
+              self.ctrls = box_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.track, self )
+            end
             return true
           end
         end
@@ -4066,9 +4139,11 @@ end
 
 function machineView:broadcastToGroup(groups, property, val)
   for i,v in pairs(groups) do
-    for j,w in pairs(self[property][v]) do
-      local trk = self.tracks[w]
-      trk:setProperty(property, val)
+    if ( self[property][v] ) then
+      for j,w in pairs(self[property][v]) do
+        local trk = self.tracks[w]
+        trk:setProperty(property, val)
+      end
     end
   end
 end
