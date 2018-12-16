@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.66
+@version 0.67
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.67 (2018-12-16)
+   + First attempt at VCA handling.
  * v0.66 (2018-12-15)
    + Option for shadow alpha and offset (shadowAlpha & shadowOffset).
    + Option for setting text rendering (outline or not). 0 = inverse of bg color, 1 = outlined, 2 = white or black depending on bg color.
@@ -225,7 +227,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.66"
+scriptName = "Hackey Machines v0.67"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -2749,20 +2751,29 @@ function block.create(track, x, y, config, viewer)
     return solo
   end
   
+  self.setProperty = function(self, property, val)
+    reaper.SetMediaTrackInfo_Value( self.track, property, val )
+    
+    if ( self[property] and #self[property] > 0 and not self.blockBroadCast ) then
+      self.blockBroadCast = 1
+      machineView:broadcastToGroup(self[property], property, val)
+    end
+  end
+  
   self.enableMute = function(self)
-    reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 1 )
+    self:setProperty("B_MUTE", 1)
   end
   
   self.disableMute = function(self)
-    reaper.SetMediaTrackInfo_Value( self.track, "B_MUTE", 0 )
+    self:setProperty("B_MUTE", 0)
   end
   
   self.enableSolo = function(self)
-    reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 1 )
+    self:setProperty("I_SOLO", 1)
   end
   
   self.disableSolo = function(self)
-    reaper.SetMediaTrackInfo_Value( self.track, "I_SOLO", 0 )
+    self:setProperty("I_SOLO", 0)
   end
   
   self.toggleMute = function(self)
@@ -4053,8 +4064,20 @@ function machineView:updateGridSize()
   end  
 end
 
+function machineView:broadcastToGroup(groups, property, val)
+  for i,v in pairs(groups) do
+    for j,w in pairs(self[property][v]) do
+      local trk = self.tracks[w]
+      trk:setProperty(property, val)
+    end
+  end
+end
+
 function machineView:updateGUI()
   self:updateGridSize()
+  for i,v in pairs(self.tracks) do
+    v.blockBroadCast = nil
+  end
 
   if ( grid > 1 ) then
     local dX = (zoom*machineView.config.gridx)
@@ -4145,6 +4168,30 @@ function machineView:updateNames()
   end
 end
 
+local function unpackInt(val, offset, tin)
+  local chk = 2147483648 --4294967296
+  local idx = 32
+  
+  local t = tin or {}
+  while( idx > 0 ) do
+    if ( val >= chk ) then
+      table.insert(t, idx+offset)
+      val = val - chk
+    end
+    idx = idx - 1
+    chk = chk * .5    
+  end
+  
+  return t
+end
+
+local function fetchGroupProperty( track, property )
+  local high = unpackInt( reaper.GetSetTrackGroupMembershipHigh(track, property, 0, 0), 32 )
+  local complete = unpackInt( reaper.GetSetTrackGroupMembership(track, property, 0, 0), 0, high )  
+  
+  return complete
+end
+
 function machineView:loadTracks(updateNow)
   --local self = machineView
   
@@ -4158,6 +4205,8 @@ function machineView:loadTracks(updateNow)
   end
   
   -- Fetch the tracks
+  local muteSlaves = {}
+  local soloSlaves = {}
   for i=0,reaper.GetNumTracks()-1 do
     local track = reaper.GetTrack(0, i)
     local GUID = reaper.GetTrackGUID(track)
@@ -4179,8 +4228,28 @@ function machineView:loadTracks(updateNow)
       if ( reaper.GetMediaTrackInfo_Value(track, "I_SELECTED") == 1 ) then
         self.tracks[GUID].selected = 1
       end
+      
+      -- Assign group masters
+      local muteMaster = fetchGroupProperty( track, "MUTE_MASTER" )
+      local soloMaster = fetchGroupProperty( track, "SOLO_MASTER" )      
+      self.tracks[GUID].B_MUTE = muteMaster
+      self.tracks[GUID].I_SOLO = soloMaster
+      
+      -- Assign group slaves
+      local muteSlave = fetchGroupProperty( track, "MUTE_SLAVE" )
+      local soloSlave = fetchGroupProperty( track, "SOLO_SLAVE" )
+      for j,w in pairs(muteSlave) do
+        if not muteSlaves[w] then muteSlaves[w] = {} end
+        table.insert( muteSlaves[w], GUID )
+      end
+      for j,w in pairs(soloSlave) do
+        if not soloSlaves[w] then soloSlaves[w] = {} end
+        table.insert( soloSlaves[w], GUID )
+      end
     end
   end
+  self.I_SOLO = soloSlaves
+  self.B_MUTE = muteSlaves
   
   -- Remove the ones that do not exist anymore
   for i,v in pairs( self.tracks ) do
