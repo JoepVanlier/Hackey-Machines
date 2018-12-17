@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.69
+@version 0.70
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,15 @@
 
 --[[
  * Changelog:
+ * v0.70 (2018-12-17)
+   + Fix group solo not working in some cases (was caused by broadcast blocking being non-property specific).
+   + Added tweaking config setting for gradient alpha.
+   + Added wire thickness config setting.
+   + CTRL + A
+   + Linked multi-hide also from dialog now.
+   + Exposed pansize (Positive values scale with UI, negative values keep fixed size. A minimum size can also be specified).
+   + Exposed font in config file.
+   + Fix bug mutebox rendering (weird colors).
  * v0.69 (2018-12-16)
    + Show small metering in channel control window.
    + Exposed noise floor that is used in metering in config file
@@ -233,37 +242,40 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.69"
+scriptName = "Hackey Machines v0.70"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
-
-machineFont = "Lucida Grande"
 
 machineView = {}
 machineView.tracks = {}
 machineView.config = {}
-machineView.config.blockWidth = 100
-machineView.config.blockHeight = 50
-machineView.config.width = 500
-machineView.config.height = 500
-machineView.config.x = 100
-machineView.config.y = 100
-machineView.config.d = 0
-machineView.config.square = 1
-machineView.config.shadowAlpha = 0.3
-machineView.config.shadowOffset = 5
-machineView.config.textOutline = 1
-machineView.config.textOutlineAlpha = 0.5
-machineView.config.muteButtonSize = 0
-machineView.config.sendAlpha = .4
-machineView.config.parentAlpha = 1
-machineView.config.noiseFloor = 36
-machineView.config.metering = 1
+machineView.config.blockWidth       = 100
+machineView.config.blockHeight      = 50
+machineView.config.width            = 500
+machineView.config.height           = 500
+machineView.config.x                = 100
+machineView.config.y                = 100
+machineView.config.d                = 0
+machineView.config.square           = 1
+machineView.config.shadowAlpha      = 0.3     -- Alpha level of the drop shadow
+machineView.config.shadowOffset     = 5       -- Offset of the drop shadow
+machineView.config.textOutline      = 2       -- Text rendering on machines: 0 = inverse of bg color, 1 = outlined, 2 = white or black depending on bg color
+machineView.config.textOutlineAlpha = 0.5     -- When outline is used, this sets the alpha level
+machineView.config.muteButtonSize   = 0       -- When 0 mute button is autosized. When > 0 it is set to a predefined value.
+machineView.config.sendAlpha        = .4      -- Alpha level of the send wires
+machineView.config.parentAlpha      = 1       -- Alpha level of tracks that send to their parent
+machineView.config.noiseFloor       = 36      -- Noise floor in the metering
+machineView.config.metering         = 1       -- Show VU bars
+machineView.config.gradientAlpha    = .08     -- How visible the gradient is
+machineView.config.thickWireWidth   = .4      -- How wide a thick wire is
+machineView.config.panSize          = 11      -- Negative numbers set a fixed pansize
+machineView.config.minPanSize       = 4       -- Minimum size of pan widget
+machineView.config.machineFont      = "Lucida Grande"
 
-machineView.config.muteOrigX = 4
-machineView.config.muteOrigY = 4
-machineView.config.muteWidth = 14
-machineView.config.muteHeight = 7
+machineView.config.muteOrigX = 0
+machineView.config.muteOrigY = 0
+machineView.config.muteWidth = 25
+machineView.config.muteHeight = 12.5
 machineView.config.keymap = 0
 machineView.config.maxkeymap = 1
 machineView.config.msgTime = 2.5
@@ -327,6 +339,7 @@ local function initializeKeys( keymap )
   keys.hideMachines       = {        2,    2,    2,    2,     0,     0,      0,      104 }          -- hide machines (h)
   keys.simulate           = {        2,    2,    2,    2,     1,     0,      0,      13 }           -- simulate (return)
   keys.help               = {        2,    2,    2,    2,     0,     0,      0,      26161 }        -- help (F1)
+  keys.selectAll          = {        2,    2,    2,    2,     1,     0,      0,      1 }           -- Select all (CTRL + A)
   keys.recGroup           = {        2,    2,    2,    2,     1,     0,      0,      18 }           -- set record group (ctrl + r)
   keys.showSignals        = {        2,    2,    2,    2,     0,     0,      0,      26162 }        -- toggle show signals (F2)
   keys.trackNames         = {        2,    2,    2,    2,     0,     0,      0,      26163 }        -- toggle show track names (F3)
@@ -843,10 +856,11 @@ end
 colors = {}
 function machineView:loadColors(colorScheme)
   -- If you come up with a cool alternative color scheme, let me know
+  colors.hideColor        = { 0.9, 0.7, 0.4, 1.0 }
   if colorScheme == "default" then
     -- Buzz
     colors.textcolor        = {1/256*48, 1/256*48, 1/256*33, 1}
-    colors.linecolor        = {1/256*48, 1/256*48, 1/256*33, 1}    
+    colors.linecolor        = {1/256*48, 1/256*48, 1/256*33, .5}    
     colors.linecolor2       = {1/256*218, 1/256*214, 1/256*201, 1}
     colors.windowbackground = {1/256*218, 1/256*214, 1/256*201, 1}
     colors.buttonbg         = { 0.1, 0.1, 0.1, .7 }
@@ -1016,7 +1030,17 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
     
     if ( center ~= 0.5 ) then
       local xc = xmi + center * w
-      local pansize = 7 * zoom
+
+      local pansize
+      local ps = cfg.panSize
+      if ( ps > 0 ) then
+        pansize = ps * zoom
+        if ( pansize < cfg.minPanSize ) then
+          pansize = cfg.minPanSize
+        end
+      else
+        pansize = -ps
+      end
       gfx.a = 0.7*gfx.a
       gfx.triangle(math.max(xmi-1,xc-pansize), yma, xc, yma-pansize, math.min(xma+1,xc+pansize), yma)
     end
@@ -1047,7 +1071,7 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
     gfx.set( table.unpack(fg) )
   end
   
-  gfx.setfont(1, machineFont, math.floor(19*zoom))
+  gfx.setfont(1, cfg.machineFont, math.floor(19*zoom))
   
   if ( rnc ) then
     gfx.set( table.unpack(rnc) )
@@ -1065,9 +1089,8 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
     local wc, hc, lines
     name, lines = wrapPrint(name, w-4)
 
-    local xl = xtrafo(x) - 0.5*w + 4  
+    local xl = xtrafo(x) - 0.5*w + 3
     local yl = ytrafo(y) - 0.18*h - math.max(0,(lines-1))*0.09*h
-    
     if ( cfg.textOutline == 1 ) then
       if ( fg[1] > 0.5 ) then
         gfx.set( 0, 0, 0, cfg.textOutlineAlpha )
@@ -1137,15 +1160,21 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   gfx.set( table.unpack(playColor) ) 
   gfx.rect(xmi2, ymi2, w2 + 1, h2 + 1 )
   
-  if ( (bg[1]+bg[2]+bg[3])>1.5) then
-    gfx.set( 0, 0, 0, 1 )
-  else
-    gfx.set( 1, 1, 1, 1 )
-  end    
-  gfx.line(xmi2, ymi2, xma2, ymi2)
+  --if ( (bg[1]+bg[2]+bg[3])>1.5) then
+  --  
+  --else
+  --  gfx.set( 1, 1, 1, 1 )
+  --end
+  gfx.set( table.unpack(fgline) )  
   gfx.line(xmi2, yma2, xma2, yma2)
-  gfx.line(xmi2, ymi2, xmi2, yma2)
   gfx.line(xma2, ymi2, xma2, yma2)
+  
+  if ( xmi2 > xmi ) then
+    gfx.line(xmi2, ymi2, xmi2, yma2)
+  end
+  if ( ymi2 > ymi ) then
+    gfx.line(xmi2, ymi2, xma2, ymi2)
+  end
   
   if ( hidden == 1 ) then
     gfx.set( bg[1]*.8, bg[2]*.8, bg[3]*.8, 0.6 )
@@ -1153,10 +1182,11 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   end  
   
   if ( selected > 0 ) then
+    local grAlpha = cfg.gradientAlpha
     if ( night == 1 ) then
-      gfx.set(clamp01(bg[1]+.25), clamp01(bg[1]+.25), clamp01(bg[1]+.35), .1)
+      gfx.set(clamp01(bg[1]+.25), clamp01(bg[1]+.25), clamp01(bg[1]+.35), grAlpha)
     else
-      gfx.set(0, 0, 0, .1)
+      gfx.set(0, 0, 0, grAlpha)
     end
     local nmax = 8
     local mi1 = xmi + .1 * w
@@ -1612,7 +1642,7 @@ function box_ctrls.create(viewer, x, y, track, parent, forceBig)
   
   local hideUpdate = function(self)
     if ( self.parent.parent.hidden == 1 ) then
-      self.fg = colors.buttonfg    
+      self.fg = colors.hideColor
     else
       self.fg = colors.inactiveColor
     end
@@ -1638,12 +1668,17 @@ function box_ctrls.create(viewer, x, y, track, parent, forceBig)
     self.parent:rename()
   end
   
-  local hideCallback = function()
+  local hideCallback = function()  
     if ( self.parent.hidden == 0 ) then
       self.parent.hidden = 1
-      self.parent:deselect()
+      if ( self.parent.selected == 1 ) then
+        machineView:hideMachines(1)
+      end
     else
       self.parent.hidden = 0
+      if ( self.parent.selected == 1 ) then
+        machineView:hideMachines(0)
+      end      
     end
     
     self.viewer:storePositions()
@@ -2199,7 +2234,7 @@ function sink.create(viewer, track, idx, sinkData, offset)
       end
 
       if ( self.accent == 1 or self.ctrls ) then
-        wgfx.thickline( this.x, this.y, other.x, other.y, .75, 5, colors.selectionColor )
+        wgfx.thickline( this.x, this.y, other.x, other.y, machineView.config.thickWireWidth, 5, colors.selectionColor )
       else
         if ( hideWires == 0 or (hideWires == 2 and self.accent == 2) ) then
           gfx.a = alpha
@@ -2303,7 +2338,7 @@ function block.create(track, x, y, config, viewer)
   end
   
   self.loadColors = function(self)
-    local FG = { colors.textcolor[1], colors.textcolor[2], colors.textcolor[3], colors.textcolor[4] }
+    local FG = { colors.textcolor[1],  colors.textcolor[2],  colors.textcolor[3],  colors.textcolor[4] }
     local BG = { colors.linecolor2[1], colors.linecolor2[2], colors.linecolor2[3], colors.linecolor2[4] }
     
     if ( useColors == 1 ) then
@@ -2912,9 +2947,9 @@ function block.create(track, x, y, config, viewer)
   
   self.setProperty = function(self, property, val)
     reaper.SetMediaTrackInfo_Value( self.track, property, val )
-    
-    if ( self[property] and #self[property] > 0 and not self.blockBroadCast ) then
-      self.blockBroadCast = 1
+    if ( self[property] and #self[property] > 0 and not (self.blocks and self.blocks[property]) ) then
+      self.blocks = {}
+      self.blocks[property] = 1
       machineView:broadcastToGroup(self[property], property, val)
     end
   end
@@ -3177,18 +3212,21 @@ function machineView:addTrack(track, x, y)
   return self.tracks[GUID]
 end
 
-function machineView:hideMachines()
+function machineView:hideMachines(force)
   for i,v in pairs(self.tracks) do
     if ( v.selected == 1 ) then
-      if ( v.hidden == 1 ) then
+      if ( force ) then
+        v.hidden = force
+      elseif ( v.hidden == 1 ) then
         v.hidden = 0
       else
         v.hidden = 1
-        v:deselect()
+        --v:deselect()
       end
     end
   end
-  self:updateGUI()
+  
+  --self:updateGUI()
 end
 
 function machineView:deleteMachines()
@@ -3738,7 +3776,7 @@ local function updateLoop()
   end
   
   self:updateGUI()
-  
+    
   -- More SFX
   if ( SFX == 1 ) then
     gfx.dest = -1
@@ -4057,6 +4095,10 @@ local function updateLoop()
           saveCFG(filename, self.config)
           self:printMessage( "Switching to keymap " .. self.config.keymap .. ": " .. keymapNames[self.config.keymap] )
           initializeKeys(self.config.keymap)        
+        elseif ( inputs('selectAll') ) then
+          for i,v in pairs( self.tracks ) do
+            v:select()
+          end
         elseif ( inputs('minzoom') ) then
           zoom = 0.4
         elseif ( inputs('maxzoom') ) then
@@ -4237,7 +4279,7 @@ end
 function machineView:updateGUI()
   self:updateGridSize()
   for i,v in pairs(self.tracks) do
-    v.blockBroadCast = nil
+    v.blocks = nil
   end
 
   if ( grid > 1 ) then
@@ -5008,7 +5050,7 @@ function loadCFG(fn, cfg)
       io.input(file)
       local str = io.read()
       while ( str ) do
-        for k, v in string.gmatch(str, "(%w+)=(%w+%.*%w*)") do
+        for k, v in string.gmatch(str, "(%w+)=([%+%-]*%w*% *%w+%.*%w*)") do
           local no = tonumber(v)
           if ( no ) then
             cfg[k] = no
