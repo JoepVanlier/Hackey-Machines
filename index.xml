@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="7ba6e409bb0a4cd132eb3a1ea7341d4a9b7fb3b5">
+<index version="1" name="Routing tools" commit="e55fd6721beafdae04df416de9d5a8f8deba0336">
   <category name="MachineView">
     <reapack name="MachineView_exec.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -200,6 +200,17 @@ here
         <changelog><![CDATA[+ Show small metering in channel control window.
 + Exposed noise floor that is used in metering in config file]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/7ba6e409bb0a4cd132eb3a1ea7341d4a9b7fb3b5/MachineView/MachineView_exec.lua</source>
+      </version>
+      <version name="0.70" author=": Joep Vanlier" time="2018-12-17T23:47:34Z">
+        <changelog><![CDATA[+ Fix group solo not working in some cases (was caused by broadcast blocking being non-property specific).
++ Added tweaking config setting for gradient alpha.
++ Added wire thickness config setting.
++ CTRL + A
++ Linked multi-hide also from dialog now.
++ Exposed pansize (Positive values scale with UI, negative values keep fixed size. A minimum size can also be specified).
++ Exposed font in config file.
++ Fix bug mutebox rendering (weird colors).]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/e55fd6721beafdae04df416de9d5a8f8deba0336/MachineView/MachineView_exec.lua</source>
       </version>
     </reapack>
     <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines Loader">
