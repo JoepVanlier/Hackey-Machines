@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.70
+@version 0.71
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.71 (2018-12-18)
+   + Config file sort and descriptions.
  * v0.70 (2018-12-17)
    + Fix group solo not working in some cases (was caused by broadcast blocking being non-property specific).
    + Added tweaking config setting for gradient alpha.
@@ -242,44 +244,77 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.70"
+scriptName = "Hackey Machines v0.71"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
 machineView = {}
 machineView.tracks = {}
 machineView.config = {}
-machineView.config.blockWidth       = 100
-machineView.config.blockHeight      = 50
-machineView.config.width            = 500
-machineView.config.height           = 500
-machineView.config.x                = 100
-machineView.config.y                = 100
-machineView.config.d                = 0
-machineView.config.square           = 1
-machineView.config.shadowAlpha      = 0.3     -- Alpha level of the drop shadow
-machineView.config.shadowOffset     = 5       -- Offset of the drop shadow
-machineView.config.textOutline      = 2       -- Text rendering on machines: 0 = inverse of bg color, 1 = outlined, 2 = white or black depending on bg color
-machineView.config.textOutlineAlpha = 0.5     -- When outline is used, this sets the alpha level
-machineView.config.muteButtonSize   = 0       -- When 0 mute button is autosized. When > 0 it is set to a predefined value.
-machineView.config.sendAlpha        = .4      -- Alpha level of the send wires
-machineView.config.parentAlpha      = 1       -- Alpha level of tracks that send to their parent
-machineView.config.noiseFloor       = 36      -- Noise floor in the metering
-machineView.config.metering         = 1       -- Show VU bars
-machineView.config.gradientAlpha    = .08     -- How visible the gradient is
-machineView.config.thickWireWidth   = .4      -- How wide a thick wire is
-machineView.config.panSize          = 11      -- Negative numbers set a fixed pansize
-machineView.config.minPanSize       = 4       -- Minimum size of pan widget
-machineView.config.machineFont      = "Lucida Grande"
+machineView.cfgInfo = {}
 
-machineView.config.muteOrigX = 0
-machineView.config.muteOrigY = 0
-machineView.config.muteWidth = 25
-machineView.config.muteHeight = 12.5
-machineView.config.keymap = 0
-machineView.config.maxkeymap = 1
-machineView.config.msgTime = 2.5
-machineView.config.rowSortMethod = 1
+machineView.config.blockWidth       = 100
+machineView.cfgInfo.blockWidth      = 'Width of machine.'
+machineView.config.blockHeight      = 50
+machineView.cfgInfo.blockHeight     = 'Height of machine.'
+machineView.config.width            = 500
+machineView.cfgInfo.width           = 'Default width of UI.'
+machineView.config.height           = 500
+machineView.cfgInfo.height          = 'Default height of UI.'
+machineView.config.x                = 100
+machineView.cfgInfo.x               = 'Default x pos of UI.'
+machineView.config.y                = 100
+machineView.cfgInfo.y               = 'Default y pos of UI.'
+machineView.config.d                = 0
+machineView.cfgInfo.d               = 'Default dock status of UI.'
+machineView.config.square           = 1
+machineView.cfgInfo.square          = ''
+machineView.config.shadowAlpha      = 0.3
+machineView.cfgInfo.shadowAlpha     = 'Alpha level of the drop shadow.'
+
+machineView.config.shadowOffset     = 5
+machineView.cfgInfo.shadowOffset    = 'Offset of the drop shadow.'
+machineView.config.textOutline      = 2
+machineView.cfgInfo.textOutline     = 'Text rendering on machines: 0 = inverse of bg color, 1 = outlined, 2 = white or black depending on bg color.'
+machineView.config.textOutlineAlpha = 0.5
+machineView.cfgInfo.textOutlineAlpha = 'Alpha level of outline (when used).'
+machineView.config.muteButtonSize   = 0
+machineView.cfgInfo.muteButtonSize  = 'When set to zero mute sets size automatically. When > 0 it is set to a predefined value.'
+machineView.config.sendAlpha        = .4
+machineView.cfgInfo.sendAlpha       = 'Alpha level of the send wires.'
+machineView.config.parentAlpha      = 1
+machineView.cfgInfo.parentAlpha     = 'Alpha level of tracks that send to their parent.'
+machineView.config.noiseFloor       = 36
+machineView.cfgInfo.noiseFloor      = 'Noise floor in the metering.'
+machineView.config.metering         = 1
+machineView.cfgInfo.metering        = 'Show VU bars.'
+machineView.config.gradientAlpha    = .08
+machineView.cfgInfo.gradientAlpha   = 'Alpha level of the gradient upon selection.'
+machineView.config.thickWireWidth   = .4
+machineView.cfgInfo.thickWireWidth  = 'Highlighted wire thickness.'
+machineView.config.panSize          = 11
+machineView.cfgInfo.panSize         = 'Negative numbers set fixed pansize, positive numbers set adaptive pansize.'
+machineView.config.minPanSize       = 4
+machineView.cfgInfo.minPanSize      = 'Minimum size of pan widget.'
+machineView.config.machineFont      = "Lucida Grande"
+machineView.cfgInfo.machineFont     = 'Machine font.'
+machineView.config.muteOrigX        = 0
+machineView.cfgInfo.muteOrigX       = 'Origin of the mute button (X).'
+machineView.config.muteOrigY        = 0
+machineView.cfgInfo.muteOrigY       = 'Origin of the mute button (Y).'
+machineView.config.muteWidth        = 25
+machineView.cfgInfo.muteWidth       = 'Width of the mute box.'
+machineView.config.muteHeight       = 12.5
+machineView.cfgInfo.muteHeight      = 'Height of the mute box.'
+
+machineView.config.keymap           = 0
+machineView.cfgInfo.keymap          = 'Default keymap'
+machineView.config.maxkeymap        = 1
+machineView.cfgInfo.maxkeymap       = 'Number of keymaps.'
+machineView.config.msgTime          = 2.5
+machineView.cfgInfo.msgTime         = 'Time a message stays in console.'
+machineView.config.rowSortMethod    = 1
+machineView.cfgInfo.rowSortMethod   = 'Row sorting method (do not edit).'
 
 -- Settings for the linear spacing algorithm
 machineView.linearyspacing = 75
@@ -3776,7 +3811,7 @@ local function updateLoop()
   end
   
   self:updateGUI()
-    
+
   -- More SFX
   if ( SFX == 1 ) then
     gfx.dest = -1
@@ -4092,7 +4127,7 @@ local function updateLoop()
             self.config.keymap = 0
           end
           local filename = getConfigFn()
-          saveCFG(filename, self.config)
+          saveCFG(filename, self.config, self.cfgInfo)
           self:printMessage( "Switching to keymap " .. self.config.keymap .. ": " .. keymapNames[self.config.keymap] )
           initializeKeys(self.config.keymap)        
         elseif ( inputs('selectAll') ) then
@@ -4252,7 +4287,7 @@ function machineView:terminate()
   self:storePositions()
   
   local filename = getConfigFn()
-  saveCFG(filename, self.config)
+  saveCFG(filename, self.config, self.cfgInfo)
 end
 
 function machineView:updateGridSize()
@@ -5066,13 +5101,21 @@ function loadCFG(fn, cfg)
     return cfg
 end
 
-function saveCFG(fn, cfg)
+function saveCFG(fn, cfg, descriptions)
   local file = io.open(fn, "w+")
   
+  local info = descriptions or {}
   if ( file ) then
     io.output(file)
+
+    local keys = {}
     for i,v in pairs(cfg) do
-      io.write( string.format('%s=%s\n', i, v) )
+      table.insert(keys, i)
+    end
+    table.sort( keys )
+
+    for i,v in pairs(keys) do
+      io.write( string.format('%s=%s ; %s\n', v, cfg[v], info[v] or '' ) )
     end
     io.close(file)
   end
