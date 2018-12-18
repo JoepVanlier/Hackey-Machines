@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="e55fd6721beafdae04df416de9d5a8f8deba0336">
+<index version="1" name="Routing tools" commit="352256ce9f81bfc56aef1e24fb796ff589a43fbd">
   <category name="MachineView">
     <reapack name="MachineView_exec.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -211,6 +211,10 @@ here
 + Exposed font in config file.
 + Fix bug mutebox rendering (weird colors).]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/e55fd6721beafdae04df416de9d5a8f8deba0336/MachineView/MachineView_exec.lua</source>
+      </version>
+      <version name="0.71" author=": Joep Vanlier" time="2018-12-18T22:51:20Z">
+        <changelog><![CDATA[+ Config file sort and descriptions.]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/352256ce9f81bfc56aef1e24fb796ff589a43fbd/MachineView/MachineView_exec.lua</source>
       </version>
     </reapack>
     <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines Loader">
