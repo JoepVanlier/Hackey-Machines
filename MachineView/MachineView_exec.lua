@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.71
+@version 0.72
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.72 (2018-12-19)
+   + Added signal analysis buttons (requires analyzer jsfx plugin).
+   + TO DO: Refactor sink deletion code which would allow for continuous updating of send vol/pan properties when analyzing signal.
  * v0.71 (2018-12-18)
    + Config file sort and descriptions.
  * v0.70 (2018-12-17)
@@ -244,7 +247,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.71"
+scriptName = "Hackey Machines v0.72"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -253,6 +256,12 @@ machineView.tracks = {}
 machineView.config = {}
 machineView.cfgInfo = {}
 
+machineView.specname = "___SIGNAL_ANALYZER___"
+
+machineView.config.analyzerOn       = 1
+machineView.cfgInfo.analyzerOn      = "Show analyzer as a context option."
+machineView.config.analyzer         = "SaikeMultiSpectralAnalyzer.jsfx"
+machineView.cfgInfo.analyzer        = 'JSFX to use for signal analysis.'
 machineView.config.blockWidth       = 100
 machineView.cfgInfo.blockWidth      = 'Width of machine.'
 machineView.config.blockHeight      = 50
@@ -792,6 +801,64 @@ function palette:processMouse(mx, my)
   end
 
   return selected
+end
+
+function machineView:grabAnalyzer()
+  local project = 0
+  local tracks = reaper.CountTracks(project)
+  local spectroTrack
+  local exists
+  for i=0,tracks-1 do
+    local track   = reaper.GetTrack(project, i)    
+    local ret, name = reaper.GetTrackName(track, "                                                              ")
+    
+    if ( name == self.specname ) then
+      spectroTrack = track
+      exists = 1
+    end
+  end
+  
+  -- Create track at the end
+  if ( not spectroTrack ) then
+    reaper.InsertTrackAtIndex(tracks, true)
+    spectroTrack = reaper.GetTrack(project, tracks)
+    reaper.GetSetMediaTrackInfo_String(spectroTrack, "P_NAME", self.specname, true)
+    reaper.SetMediaTrackInfo_Value(spectroTrack, 'B_MAINSEND', 0) 
+    reaper.SetMediaTrackInfo_Value(spectroTrack, "B_SHOWINTCP", 0)
+    reaper.SetMediaTrackInfo_Value(spectroTrack, "B_SHOWINMIXER", 0)
+  else
+    -- Remove existing track sends
+    for i=reaper.GetTrackNumSends(spectroTrack, -1)-1, 0, -1 do
+      reaper.RemoveTrackSend(spectroTrack, -1, i)
+    end
+  end  
+  
+  -- Add spectrum track
+  if ( not exists ) then
+    local tfx = reaper.TrackFX_AddByName(spectroTrack, self.config.analyzer, 0, -1)
+  end
+  
+  return spectroTrack
+end
+
+function machineView:showAnalyzer(track, send)
+  local spectroTrack = self:grabAnalyzer()
+  
+  local newsend = reaper.CreateTrackSend(track, spectroTrack)
+  
+  -- If we are polling a send, then copy those settings
+  if ( send ) then
+    -- Copy over the send data
+    sendFlags = {'B_MONO', 'D_VOL', 'D_PAN', 'D_PANLAW', 'I_SENDMODE'}
+    for i,v in pairs(sendFlags) do
+      local val = reaper.GetTrackSendInfo_Value(track, 0, send, v)
+      reaper.SetTrackSendInfo_Value(track, 0, newsend, v, val)
+    end
+  end
+  
+  reaper.TrackFX_SetOpen(spectroTrack, 0, true)
+  reaper.TrackFX_Show(spectroTrack, 0, 0)  
+  reaper.TrackFX_Show(spectroTrack, 0, 3)
 end
 
 function machineView:printMessage( msg )
@@ -1703,6 +1770,10 @@ function box_ctrls.create(viewer, x, y, track, parent, forceBig)
     self.parent:rename()
   end
   
+  local signalCallback = function()
+    machineView:showAnalyzer(self.parent.track)
+  end
+  
   local hideCallback = function()  
     if ( self.parent.hidden == 0 ) then
       self.parent.hidden = 1
@@ -1722,24 +1793,32 @@ function box_ctrls.create(viewer, x, y, track, parent, forceBig)
   if ( (self.parent:sinkCount() > 0) and not self.forceBig ) then
     self.vW       = 110
     self.vH       = 80
+    local vW      = 110
+    local vH      = self.vH
     
     self.ctrls[1] = button.create(self, .2*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, soloCallback, soloUpdate)
     self.ctrls[1].label = "SOLO"
-  
+    
     self.ctrls[2] = button.create(self, .50*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, muteCallback, muteUpdate, colors.muteColor)
     self.ctrls[2].label = "MUTE"
-  
+    
     self.ctrls[3] = button.create(self, .8*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, killCallback)
     self.ctrls[3].label = "DEL"
-  
+    
     self.ctrls[4] = button.create(self, .50*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, duplicateCallback)
     self.ctrls[4].label = "DUP"
-    
+      
     self.ctrls[5] = button.create(self, .2*vW + self.offsetX, .75*vH + self.offsetY, .16*80, .2*80, renameCallback)
     self.ctrls[5].label = "REN"
-    
+      
     self.ctrls[6] = button.create(self, .8*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, hideCallback, hideUpdate)
     self.ctrls[6].label = "HIDE"
+
+    if ( machineView.config.analyzerOn == 1 ) then     
+      self.ctrls[7] = button.create(self, 1.1*vW + self.offsetX, .25*vH + self.offsetY, .16*80, .2*80, signalCallback)
+      self.ctrls[7].label = "SIG"
+      self.vW = self.vW + .3 * vW
+    end
   else
     self.inner    = .16*80
     self.outer    = .2*80
@@ -1797,8 +1876,10 @@ function box_ctrls.create(viewer, x, y, track, parent, forceBig)
     local offsetY = self.offsetY
     local xc = self.x + offsetX
     local yc = self.y + offsetY
-    local xe = xc + self.vW
-    local ye = yc + self.vH
+    local vW = self.vW
+    local vH = self.vH
+    local xe = xc + vW
+    local ye = yc + vH
     gfx.set( table.unpack(self.color) )
     gfx.rect( x + self.offsetX, y + self.offsetY, self.vW, self.vH )
     gfx.set( table.unpack(self.edge) )
@@ -1897,7 +1978,7 @@ function sink_ctrls.create(viewer, x, y, loc)
   self.ctrls = {}
  
   -- Setter and getter lambdas
-  local setVol, getVol, setPan, getPan, dispVol, dispPan, convertToSend
+  local setVol, getVol, setPan, getPan, dispVol, dispPan, convertToSend, signalCallback
   if ( loc.sendidx < 0 ) then
     -- Main send
     withChans  = 0
@@ -1905,6 +1986,7 @@ function sink_ctrls.create(viewer, x, y, loc)
     getPan = function()     return (reaper.GetMediaTrackInfo_Value(loc.track, "D_PAN")+1)*.5 end
     setVol = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_VOL", val*2) end
     setPan = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_PAN", val*2-1) end
+    signalCallback = function() machineView:showAnalyzer(loc.track) end
     if ( not loc.isMaster ) then
       convertToSend = function() self.convertToSend(self) end
     end
@@ -1913,6 +1995,7 @@ function sink_ctrls.create(viewer, x, y, loc)
     getPan = function()     return (reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN")+1)*.5 end
     setVol = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL", val*2) end
     setPan = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN", val*2-1) end
+    signalCallback = function() machineView:showAnalyzer(loc.track, loc.sendidx) end
     
     local NCH = 32
     getTarget = function()  return reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "I_DSTCHAN")/NCH end
@@ -1973,6 +2056,14 @@ function sink_ctrls.create(viewer, x, y, loc)
     if ( not loc.isMaster ) then
       self.ctrls[4] = button.create(self, .25*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, convertToSend)
       self.ctrls[4].label = "SEND"
+      if ( machineView.config.analyzerOn == 1 ) then
+        self.ctrls[5] = button.create(self, .75*vW + 40 + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, signalCallback)
+        self.ctrls[5].label = "SIG"
+        self.vW = self.vW + 40
+      end
+    elseif (machineView.config.analyzerOn == 1) then
+      self.ctrls[4] = button.create(self, .25*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, signalCallback)
+      self.ctrls[4].label = "SIG"
     end
   else
     self.ctrls[1] = dial.create(self, .2*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getVol, setVol, dispVol)
@@ -1988,6 +2079,11 @@ function sink_ctrls.create(viewer, x, y, loc)
 
     self.ctrls[5] = button.create(self, .8*vW + self.offsetX, .75*vH + self.offsetY, self.inner, self.outer, killCallback)
     self.ctrls[5].label = "DEL"
+    
+    if ( machineView.config.analyzerOn == 1 ) then
+      self.ctrls[6] = button.create(self, .8*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, signalCallback)
+      self.ctrls[6].label = "SIG"
+    end
   end
   
   self.convertToSend = function( self )
@@ -2259,7 +2355,7 @@ function sink.create(viewer, track, idx, sinkData, offset)
        alpha = cfg.parentAlpha * wireColor[4]    
     end
     
-    if ( this.hidden == 0 or (showHidden == 1) ) then
+    if ( this.hidden == 0 and other.hidden == 0 or (showHidden == 1) ) then
       local indicatorPoly = self.indicatorPoly
       if ( self:arrowVisible() ) then
         gfx.a = alpha
@@ -2437,13 +2533,17 @@ function block.create(track, x, y, config, viewer)
   end
   
   self.updateName = function() 
-    local name, ret 
+    local name, ret, str
+    ret, str = reaper.GetSetMediaTrackInfo_String(self.track, "P_NAME", "", 0 )
+    if ( str == machineView.specname ) then
+      self.hidden = 1
+    end
+    
     if ( showTrackName == 1 ) then
-      ret, str = reaper.GetSetMediaTrackInfo_String(self.track, "P_NAME", "", 0 )
       if ( ret == true ) then
         name = str
       end
-      self.name = name
+      self.name = name      
       
       if ( name == "" ) then
         name = nil
