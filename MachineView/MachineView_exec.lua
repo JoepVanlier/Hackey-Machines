@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.72
+@version 0.73
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.73 (2018-12-19)
+   + Added following for the signal analyzer. When performing signal analysis on a send, it will now respond to channel/volume/panning etc.
  * v0.72 (2018-12-19)
    + Added signal analysis buttons (requires analyzer jsfx plugin).
    + TO DO: Refactor sink deletion code which would allow for continuous updating of send vol/pan properties when analyzing signal.
@@ -247,7 +249,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.72"
+scriptName = "Hackey Machines v0.73"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -843,16 +845,45 @@ end
 
 function machineView:showAnalyzer(track, send)
   local spectroTrack = self:grabAnalyzer()
-  
   local newsend = reaper.CreateTrackSend(track, spectroTrack)
+  self.analyzer = {}
+  self.analyzer.spectrotrack = spectroTrack
+  self.analyzer.spectrosend = newsend
+  self.analyzer.terminate = function(self)
+    -- Remove existing track sends
+    for i=reaper.GetTrackNumSends(self.spectrotrack, -1)-1, 0, -1 do
+      reaper.RemoveTrackSend(self.spectrotrack, -1, i)
+    end
+  end
   
   -- If we are polling a send, then copy those settings
   if ( send ) then
     -- Copy over the send data
-    sendFlags = {'B_MONO', 'D_VOL', 'D_PAN', 'D_PANLAW', 'I_SENDMODE'}
+    sendFlags = {'B_MONO', 'D_VOL', 'D_PAN', 'D_PANLAW', 'I_SENDMODE', 'I_SRCCHAN'}
     for i,v in pairs(sendFlags) do
       local val = reaper.GetTrackSendInfo_Value(track, 0, send, v)
       reaper.SetTrackSendInfo_Value(track, 0, newsend, v, val)
+    end
+    self.analyzer.send    = send
+    self.analyzer.track   = track
+    self.analyzer.nSends  = reaper.GetTrackNumSends(track, 0)
+    self.analyzer.update  = function(self)
+      -- Analyzer gets killed when this stops returning
+      -- When the number of sends changes, we cannot guarantee this sends identity. Therefore, cut the cord, rather than 
+      -- give false information.
+      if ( reaper.ValidatePtr2(0, self.track, "MediaTrack*") and reaper.GetTrackNumSends(self.track, 0) == self.nSends ) then
+        sendFlags = {'B_MONO', 'D_VOL', 'D_PAN', 'D_PANLAW', 'I_SENDMODE', 'I_SRCCHAN'}
+        for i,v in pairs(sendFlags) do
+          local val = reaper.GetTrackSendInfo_Value(track, 0, self.send, v)
+          reaper.SetTrackSendInfo_Value(track, 0, self.spectrosend, v, val)
+        end
+        return 1
+      else
+        -- Remove existing track sends
+        for i=reaper.GetTrackNumSends(self.spectrotrack, -1)-1, 0, -1 do
+          reaper.RemoveTrackSend(self.spectrotrack, -1, i)
+        end
+      end
     end
   end
   
@@ -1961,12 +1992,13 @@ end
 -- SINK CTRLS
 ---------------------------------------
 sink_ctrls = {}
-function sink_ctrls.create(viewer, x, y, loc)
+function sink_ctrls.create(parent, viewer, x, y, loc)
   local self  = {}
   self.x      = x
   self.y      = y
   self.loc    = loc
   self.viewer = viewer
+  self.parent = parent
   self.color  = { 0.103, 0.103, 0.103, 0.9 }
   self.edge   = { 0.203, 0.23, 0.13, 0.9 }  
   
@@ -1978,7 +2010,8 @@ function sink_ctrls.create(viewer, x, y, loc)
   self.ctrls = {}
  
   -- Setter and getter lambdas
-  local setVol, getVol, setPan, getPan, dispVol, dispPan, convertToSend, signalCallback
+  local setVol, getVol, setPan, getPan, dispVol, dispPan, convertToSend
+  local signalCallback = function () self.parent:analyzeSignal() end
   if ( loc.sendidx < 0 ) then
     -- Main send
     withChans  = 0
@@ -1986,8 +2019,7 @@ function sink_ctrls.create(viewer, x, y, loc)
     getPan = function()     return (reaper.GetMediaTrackInfo_Value(loc.track, "D_PAN")+1)*.5 end
     setVol = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_VOL", val*2) end
     setPan = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_PAN", val*2-1) end
-    signalCallback = function() machineView:showAnalyzer(loc.track) end
-    if ( not loc.isMaster ) then
+ if ( not loc.isMaster ) then
       convertToSend = function() self.convertToSend(self) end
     end
   else
@@ -1995,8 +2027,7 @@ function sink_ctrls.create(viewer, x, y, loc)
     getPan = function()     return (reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN")+1)*.5 end
     setVol = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL", val*2) end
     setPan = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN", val*2-1) end
-    signalCallback = function() machineView:showAnalyzer(loc.track, loc.sendidx) end
-    
+ 
     local NCH = 32
     getTarget = function()  return reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "I_DSTCHAN")/NCH end
     getSource = function()  return reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "I_SRCCHAN")/NCH end    
@@ -2043,8 +2074,7 @@ function sink_ctrls.create(viewer, x, y, loc)
   local vW = self.vW
   local vH = self.vH  
   
-  local killCallback = function() self.kill(self) end
-  
+  local killCallback = function() self.parent:kill() end
   if ( withChans == 0 ) then
     self.ctrls[1] = dial.create(self, .25*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getVol, setVol, dispVol)
     self.ctrls[1].label = "V"
@@ -2091,17 +2121,7 @@ function sink_ctrls.create(viewer, x, y, loc)
     reaper.SetMediaTrackInfo_Value(loc.track, "B_MAINSEND", 0)
     reaper.CreateTrackSend(loc.track, loc.dest)
     reaper.Undo_EndBlock("Hackey Machines: Convert mainsend to custom send", -1)    
-  end  
-  
-  self.kill = function( self )
-    reaper.Undo_BeginBlock()
-    if ( loc.sendidx < 0 ) then
-      reaper.SetMediaTrackInfo_Value(loc.track, "B_MAINSEND", 0)
-    else
-      reaper.RemoveTrackSend(loc.track, 0, loc.sendidx)
-    end
-    reaper.Undo_EndBlock("Hackey Machines: Remove signal cable", -1)
-  end
+  end   
   
   self.draw = function( self )
     local x = self.x
@@ -2397,15 +2417,15 @@ function sink.create(viewer, track, idx, sinkData, offset)
       machineView.lastOver = self.GUID
       if ( inputs('openSinkControl') or inputs('openSinkControl2') ) then      
         if ( not self.ctrls ) then
-          self.ctrls = sink_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.loc )
+          self.ctrls = sink_ctrls.create( self, self.viewer, gfx.mouse_x, gfx.mouse_y, self.loc )
           return true
         end
       end
 
       if ( inputs('deleteSink') ) then
         if ( not self.ctrls ) then
-          self.ctrls = sink_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.loc )
-          self.ctrls:kill()
+          --self.ctrls = sink_ctrls.create( self.viewer, gfx.mouse_x, gfx.mouse_y, self.loc )
+          self:kill(self.loc)
           return true
         end
       end
@@ -2413,6 +2433,27 @@ function sink.create(viewer, track, idx, sinkData, offset)
     
     return false
   end  
+  
+  self.analyzeSignal = function( self )
+    local loc = self.loc
+    if ( loc.sendidx < 0 ) then
+      machineView:showAnalyzer(loc.track)
+    else
+      machineView:showAnalyzer(loc.track, loc.sendidx)
+    end
+  end
+ 
+  self.kill = function( self )
+    local loc = self.loc
+    
+    reaper.Undo_BeginBlock()
+    if ( loc.sendidx < 0 ) then
+      reaper.SetMediaTrackInfo_Value(loc.track, "B_MAINSEND", 0)
+    else
+      reaper.RemoveTrackSend(loc.track, 0, loc.sendidx)
+    end
+    reaper.Undo_EndBlock("Hackey Machines: Remove signal cable", -1)
+  end
   
   self:update()
   
@@ -3910,6 +3951,12 @@ local function updateLoop()
     gfx.blurto(gfx.w, gfx.h)
   end
   
+  if ( self.analyzer and self.analyzer.update ) then
+    if not self.analyzer:update() then
+      self.analyzer = nil
+    end
+  end
+  
   self:updateGUI()
 
   -- More SFX
@@ -4388,6 +4435,10 @@ function machineView:terminate()
   
   local filename = getConfigFn()
   saveCFG(filename, self.config, self.cfgInfo)
+
+  --if ( self.analyzer and self.analyzer.terminate ) then
+  --  self.analyzer:terminate()  
+  --end
 end
 
 function machineView:updateGridSize()
