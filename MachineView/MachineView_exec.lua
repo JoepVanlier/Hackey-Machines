@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.73
+@version 0.74
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.74 (2019-1-13)
+   + Make sure that signal analysis track doesn't have FX prior to adding the meter.
  * v0.73 (2018-12-19)
    + Added following for the signal analyzer. When performing signal analysis on a send, it will now respond to channel/volume/panning etc.
  * v0.72 (2018-12-19)
@@ -249,7 +251,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.73"
+scriptName = "Hackey Machines v0.74"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -822,7 +824,7 @@ function machineView:grabAnalyzer()
   
   -- Create track at the end
   if ( not spectroTrack ) then
-    reaper.InsertTrackAtIndex(tracks, true)
+    reaper.InsertTrackAtIndex(tracks, false)
     spectroTrack = reaper.GetTrack(project, tracks)
     reaper.GetSetMediaTrackInfo_String(spectroTrack, "P_NAME", self.specname, true)
     reaper.SetMediaTrackInfo_Value(spectroTrack, 'B_MAINSEND', 0) 
