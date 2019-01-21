@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.74
+@version 0.75
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.75 (2019-1-21)
+   + Gray unselected text
+   + Make default gradient much more subtle.
  * v0.74 (2019-1-13)
    + Make sure that signal analysis track doesn't have FX prior to adding the meter.
  * v0.73 (2018-12-19)
@@ -251,7 +254,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.74"
+scriptName = "Hackey Machines v0.75"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -301,7 +304,7 @@ machineView.config.noiseFloor       = 36
 machineView.cfgInfo.noiseFloor      = 'Noise floor in the metering.'
 machineView.config.metering         = 1
 machineView.cfgInfo.metering        = 'Show VU bars.'
-machineView.config.gradientAlpha    = .08
+machineView.config.gradientAlpha    = .03
 machineView.cfgInfo.gradientAlpha   = 'Alpha level of the gradient upon selection.'
 machineView.config.thickWireWidth   = .4
 machineView.cfgInfo.thickWireWidth  = 'Highlighted wire thickness.'
@@ -1270,11 +1273,22 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
       gfx.y = yl
       gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 )
     elseif ( cfg.textOutline == 2 ) then
-      if ( (bg[1]+bg[2]+bg[3])>1.5) then
-        gfx.set( 0, 0, 0, 1 )
+      local lum = 0.2126*bg[1] + 0.7152*bg[2] + 0.0722*bg[3];
+      if ( selected > 0 ) then      
+        if ( lum > .5) then
+          gfx.set( 0, 0, 0, 1 )
+        else
+          gfx.set( 1, 1, 1, 1 )
+        end
       else
-        gfx.set( 1, 1, 1, 1 )
+        if (lum>0.5) then
+          bias = -.2;
+        else
+          bias = 0;
+        end
+        gfx.set( .5 + bias, .5 + bias, .5 + bias, 1 );
       end
+        
       gfx.x = xl
       gfx.y = yl
       gfx.drawstr( name, 1, gfx.x+w-4, gfx.y+h-4 ) 
@@ -1319,7 +1333,7 @@ local function box( x, y, w, h, name, fgline, fg, bg, xo, yo, w2, h2, showSignal
   if ( selected > 0 ) then
     local grAlpha = cfg.gradientAlpha
     if ( night == 1 ) then
-      gfx.set(clamp01(bg[1]+.25), clamp01(bg[1]+.25), clamp01(bg[1]+.35), grAlpha)
+      gfx.set(clamp01(bg[1]+.25), clamp01(bg[2]+.25), clamp01(bg[3]+.35), grAlpha)
     else
       gfx.set(0, 0, 0, grAlpha)
     end
