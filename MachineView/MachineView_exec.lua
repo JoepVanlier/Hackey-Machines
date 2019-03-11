@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.75
+@version 0.76
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.76 (2019-3-11)
+   + Allow customization fader range
  * v0.75 (2019-1-21)
    + Gray unselected text
    + Make default gradient much more subtle.
@@ -254,7 +256,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.75"
+scriptName = "Hackey Machines v0.76"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -331,6 +333,9 @@ machineView.config.msgTime          = 2.5
 machineView.cfgInfo.msgTime         = 'Time a message stays in console.'
 machineView.config.rowSortMethod    = 1
 machineView.cfgInfo.rowSortMethod   = 'Row sorting method (do not edit).'
+
+machineView.config.maxVolume        = 2
+machineView.cfgInfo.maxVolume       = 'Maximum volume boost factor (2=6dB)'
 
 -- Settings for the linear spacing algorithm
 machineView.linearyspacing = 75
@@ -1874,13 +1879,15 @@ function box_ctrls.create(viewer, x, y, track, parent, forceBig)
     local vH      = self.vH
     local vW      = self.vW
 
+    local maxVolFactor = machineView.config.maxVolume;
+
     -- Setter and getter lambdas
     local track   = self.parent.track
-    local getVol  = function()     return reaper.GetMediaTrackInfo_Value(track, "D_VOL")/2 end
+    local getVol  = function()     return reaper.GetMediaTrackInfo_Value(track, "D_VOL")/maxVolFactor end
     local getPan  = function()     return (reaper.GetMediaTrackInfo_Value(track, "D_PAN")+1)*.5 end
-    local setVol  = function(val)  return reaper.SetMediaTrackInfo_Value(track, "D_VOL", val*2) end
+    local setVol  = function(val)  return reaper.SetMediaTrackInfo_Value(track, "D_VOL", val*maxVolFactor) end
     local setPan  = function(val)  return reaper.SetMediaTrackInfo_Value(track, "D_PAN", val*2-1) end
-    local dispVol = function(val)  return string.format("%.1f",20*math.log(val*2)/math.log(10)) end
+    local dispVol = function(val)  return string.format("%.1f",20*math.log(val*maxVolFactor)/math.log(10)) end
     local dispPan = function(val) 
       if ( val > 0.501 ) then
         return string.format("%2dR",math.ceil(200*(val-0.5)))
@@ -1891,7 +1898,7 @@ function box_ctrls.create(viewer, x, y, track, parent, forceBig)
       end
     end
   
-    self.ctrls[1] = dial.create(self, .2*vW + self.offsetX, .185*vH + self.offsetY, self.inner, self.outer, getVol, setVol, dispVol)
+    self.ctrls[1] = dial.create(self, .2*vW + self.offsetX, .185*vH + self.offsetY, self.inner, self.outer, getVol, setVol, dispVol, nil, nil, .5/maxVolFactor)
     self.ctrls[1].label = "V"
     self.ctrls[2] = dial.create(self, .55*vW + self.offsetX, .185*vH + self.offsetY, self.inner, self.outer, getPan, setPan, dispPan)
     self.ctrls[2].label = "P"
@@ -1937,7 +1944,7 @@ function box_ctrls.create(viewer, x, y, track, parent, forceBig)
     
     for i,v in pairs(self.ctrls) do
       v:draw()
-    end
+    end    
     
     -- METERING
     if ( machineView.config.metering == 1 ) then
@@ -2024,6 +2031,8 @@ function sink_ctrls.create(parent, viewer, x, y, loc)
   self.inner    = .16*80
   self.outer    = .2*80
   self.ctrls = {}
+  
+  local maxVolFactor = machineView.config.maxVolume;
  
   -- Setter and getter lambdas
   local setVol, getVol, setPan, getPan, dispVol, dispPan, convertToSend
@@ -2031,17 +2040,17 @@ function sink_ctrls.create(parent, viewer, x, y, loc)
   if ( loc.sendidx < 0 ) then
     -- Main send
     withChans  = 0
-    getVol = function()     return reaper.GetMediaTrackInfo_Value(loc.track, "D_VOL")/2 end
+    getVol = function()     return reaper.GetMediaTrackInfo_Value(loc.track, "D_VOL")/maxVolFactor end
     getPan = function()     return (reaper.GetMediaTrackInfo_Value(loc.track, "D_PAN")+1)*.5 end
-    setVol = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_VOL", val*2) end
+    setVol = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_VOL", val*maxVolFactor) end
     setPan = function(val)  return reaper.SetMediaTrackInfo_Value(loc.track, "D_PAN", val*2-1) end
  if ( not loc.isMaster ) then
       convertToSend = function() self.convertToSend(self) end
     end
   else
-    getVol = function()     return reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL")/2 end
+    getVol = function()     return reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL")/maxVolFactor end
     getPan = function()     return (reaper.GetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN")+1)*.5 end
-    setVol = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL", val*2) end
+    setVol = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_VOL", val*maxVolFactor) end
     setPan = function(val)  return reaper.SetTrackSendInfo_Value(loc.track, 0, loc.sendidx, "D_PAN", val*2-1) end
  
     local NCH = 32
@@ -2068,7 +2077,7 @@ function sink_ctrls.create(parent, viewer, x, y, loc)
     end
   end
   
-  dispVol = function(val) return string.format("%.1f",20*math.log(val*2)/math.log(10)) end
+  dispVol = function(val) return string.format("%.1f",20*math.log(val*maxVolFactor)/math.log(10)) end
   dispPan = function(val) 
     if ( val > 0.501 ) then
       return string.format("%2dR",math.ceil(200*(val-0.5)))
@@ -2092,7 +2101,7 @@ function sink_ctrls.create(parent, viewer, x, y, loc)
   
   local killCallback = function() self.parent:kill() end
   if ( withChans == 0 ) then
-    self.ctrls[1] = dial.create(self, .25*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getVol, setVol, dispVol)
+    self.ctrls[1] = dial.create(self, .25*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getVol, setVol, dispVol, nil, nil, 1/maxVolFactor)
     self.ctrls[1].label = "V"
     self.ctrls[2] = dial.create(self, .75*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getPan, setPan, dispPan)
     self.ctrls[2].label = "P"
@@ -2112,7 +2121,7 @@ function sink_ctrls.create(parent, viewer, x, y, loc)
       self.ctrls[4].label = "SIG"
     end
   else
-    self.ctrls[1] = dial.create(self, .2*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getVol, setVol, dispVol)
+    self.ctrls[1] = dial.create(self, .2*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getVol, setVol, dispVol, nil, nil, 1/maxVolFactor)
     self.ctrls[1].label = "V"
     self.ctrls[2] = dial.create(self, .5*vW + self.offsetX, .25*vH + self.offsetY, self.inner, self.outer, getPan, setPan, dispPan)
     self.ctrls[2].label = "P"
