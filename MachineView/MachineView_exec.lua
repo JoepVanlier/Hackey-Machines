@@ -3994,6 +3994,12 @@ local function updateLoop()
   reaper.PreventUIRefresh(-1)
   prevChar = lastChar
   lastChar = gfx.getchar()
+  
+  has_focus = gfx.getchar(65536) & 2 > 0
+  if has_focus and (lmb==0) and (rmb==0) and (mmb==0) then
+    local cmd = reaper.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
+    reaper.Main_OnCommand(cmd, 0)
+  end
 
     -- Some machine is being renamed (lock everything control related while this is occurring)
     local colorSelect = 0
