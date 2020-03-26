@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.76
+@version 0.77
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.77 (2020-03-26)
+   + Fix bug that could be caused by accidentally using a global color similarity index rather than a local copy.
+   + Add optional config flag to always defocus the window (named dropfocus, 0 = default).
  * v0.76 (2019-3-11)
    + Allow customization fader range
  * v0.75 (2019-1-21)
@@ -256,7 +259,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.76"
+scriptName = "Hackey Machines v0.77"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -4931,7 +4934,7 @@ function machineView:buildColorTable()
     end
   end
   
-  cSim = {}
+  local cSim = {}
   for i,v in pairs(self.tracks) do
     cSim[v] = {}
     for j,w in pairs(self.tracks) do
@@ -5005,6 +5008,7 @@ function machineView:calcForces()
   local QQ = .01 * Q
   local nt = #self.tracks
   local qk = k / (N*N)
+  local cSim = self.cSim
   for i,v in pairs( self.tracks ) do
     for j,w in pairs( self.tracks ) do
       if ( v ~= w ) then
@@ -5023,9 +5027,13 @@ function machineView:calcForces()
         end
 
         local F = 2*Q / dist
-        local cSim = cSim[v][w]
-        fx[i] = fx[i] + qk * rx * cSim * 75
-        fy[i] = fy[i] + qk * ry * cSim * 75
+        local similarity = 0
+        
+        if cSim and cSim[v] then
+          similarity = self.cSim[v][w] or 0
+        end
+        fx[i] = fx[i] + qk * rx * similarity * 75
+        fy[i] = fy[i] + qk * ry * similarity * 75
         
         fx[i] = fx[i] - F * rx
         fy[i] = fy[i] - F * ry
