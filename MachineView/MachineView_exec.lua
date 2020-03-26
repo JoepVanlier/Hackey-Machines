@@ -289,6 +289,8 @@ machineView.config.square           = 1
 machineView.cfgInfo.square          = ''
 machineView.config.shadowAlpha      = 0.3
 machineView.cfgInfo.shadowAlpha     = 'Alpha level of the drop shadow.'
+machineView.config.dropfocus        = 0
+machineView.cfgInfo.dropfocus      = 'Automatically drop focus.'
 
 machineView.config.shadowOffset     = 5
 machineView.cfgInfo.shadowOffset    = 'Offset of the drop shadow.'
@@ -3995,10 +3997,13 @@ local function updateLoop()
   prevChar = lastChar
   lastChar = gfx.getchar()
   
-  has_focus = gfx.getchar(65536) & 2 > 0
-  if has_focus and (lmb==0) and (rmb==0) and (mmb==0) then
-    local cmd = reaper.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
-    reaper.Main_OnCommand(cmd, 0)
+  local cfg = machineView.config
+  if cfg["dropfocus"] == 1 then
+    has_focus = gfx.getchar(65536) & 2 > 0
+    if has_focus and (lmb==0) and (rmb==0) and (mmb==0) then
+      local cmd = reaper.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
+      reaper.Main_OnCommand(cmd, 0)
+    end
   end
 
     -- Some machine is being renamed (lock everything control related while this is occurring)
