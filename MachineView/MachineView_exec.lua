@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.77
+@version 0.78
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.78 (2020-08-07)
+   + Moved night mode to persistent settings.
+   + Fix bug that makes mouse disappear after painting.
  * v0.77 (2020-03-26)
    + Fix bug that could be caused by accidentally using a global color similarity index rather than a local copy.
    + Add optional config flag to always defocus the window (named dropfocus, 0 = default).
@@ -293,7 +296,9 @@ machineView.cfgInfo.square          = ''
 machineView.config.shadowAlpha      = 0.3
 machineView.cfgInfo.shadowAlpha     = 'Alpha level of the drop shadow.'
 machineView.config.dropfocus        = 0
-machineView.cfgInfo.dropfocus      = 'Automatically drop focus.'
+machineView.cfgInfo.dropfocus       = 'Automatically drop focus.'
+machineView.config.nightMode        = 0
+machineView.cfgInfo.nightMode       = 'Default mode (1 = default=night mode, 0 = default is bright mode)'
 
 machineView.config.shadowOffset     = 5
 machineView.cfgInfo.shadowOffset    = 'Offset of the drop shadow.'
@@ -573,7 +578,6 @@ showSignals = 1
 showTrackName = 1
 showHidden = 0
 hideWires = 0
-night = 0
 grid = 0
 
 local function xtrafo(x)
@@ -754,7 +758,13 @@ function palette:draw()
   end
   yma = yma - H
   ymi = ymi - H
+
   
+  gfx.x = xmi-3
+  gfx.y = ymi-13
+  gfx.set(.5, .5, .5, self.visibility);
+  gfx.setfont(6, "Arial", 13)
+  gfx.printf("current")
   local r, g, b = reaper.ColorFromNative(self.selectedColor)
   r = (r/256)
   g = (g/256)
@@ -774,7 +784,6 @@ end
 
 function palette:processMouse(mx, my)
   local sorted = self.sorted
-  --integer retval, number color = reaper.GR_SelectColor(HWND hwnd)
   local dy = self.proceed
   local W = self.W
   local H = self.H
@@ -4041,7 +4050,7 @@ local function updateLoop()
       
       if ( rmb == 1 or lastChar > 0 ) then
         self.painting = nil
-        gfx.setcursor(1, 'arrow')
+        gfx.setcursor(32512, 'arrow')
       end
       
       if ( lastChar ~= -1 ) then
@@ -4053,6 +4062,7 @@ local function updateLoop()
     elseif ( self.help ) then
       local wcmax = 0
       local wcmax2 = 0
+      gfx.setfont(9, "Verdana", 14)
       for i,v in pairs(help) do
         local wc, hc = gfx.measurestr(v[1])
         local wc2, hc = gfx.measurestr(v[2])
@@ -4313,6 +4323,7 @@ local function updateLoop()
             self.config.keymap = 0
           end
           local filename = getConfigFn()
+          machineView.config.nightMode = night
           saveCFG(filename, self.config, self.cfgInfo)
           self:printMessage( "Switching to keymap " .. self.config.keymap .. ": " .. keymapNames[self.config.keymap] )
           initializeKeys(self.config.keymap)        
@@ -4473,6 +4484,7 @@ function machineView:terminate()
   self:storePositions()
   
   local filename = getConfigFn()
+  machineView.config.nightMode = night
   saveCFG(filename, self.config, self.cfgInfo)
 
   --if ( self.analyzer and self.analyzer.terminate ) then
@@ -5348,6 +5360,7 @@ local function Main()
   
   local filename = getConfigFn()
   self.config = loadCFG(filename, self.config)
+  night = machineView.config.nightMode
   initializeKeys(self.config.keymap)
   
   FXlist = sortTable(FXlist)
