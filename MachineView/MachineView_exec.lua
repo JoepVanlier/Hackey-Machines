@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.78
+@version 0.79
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.79 (2020-08-12)
+   + Add option to show only selected tracks.
+   + Update help file to reflect current UX.
  * v0.78 (2020-08-07)
    + Moved night mode to persistent settings.
    + Fix bug that makes mouse disappear after painting.
@@ -334,6 +337,8 @@ machineView.config.muteWidth        = 25
 machineView.cfgInfo.muteWidth       = 'Width of the mute box.'
 machineView.config.muteHeight       = 12.5
 machineView.cfgInfo.muteHeight      = 'Height of the mute box.'
+machineView.config.showOnlySelected = 0
+machineView.cfgInfo.showOnlySelected= 'Show only selected tracks'
 
 machineView.config.keymap           = 0
 machineView.cfgInfo.keymap          = 'Default keymap'
@@ -417,6 +422,7 @@ local function initializeKeys( keymap )
   keys.snapall            = {        2,    2,    2,    2,     0,     0,      0,      26167 }        -- snap all to grid (F7)
   keys.linear             = {        2,    2,    2,    2,     1,     0,      0,      26167 }        -- force linear layout (ctrl + F7)
   keys.sfx                = {        2,    2,    2,    2,     0,     0,      0,      26168 }        -- surprise! (F8)
+  keys.showOnlySelected   = {        2,    2,    2,    2,     1,     0,      0,      26168 }        -- Show only selected tracks (ctrl + F8)
   keys.hideWires          = {        2,    2,    2,    2,     0,     0,      0,      26169 }        -- hide wires (F9)
   keys.customizeMachines  = {        2,    2,    2,    2,     0,     0,      0,      6697264 }      -- customize machine list (F10)
   keys.editConfig         = {        2,    2,    2,    2,     1,     0,      0,      6697264 }      -- customize machine list (Ctrl + F10)
@@ -466,12 +472,12 @@ local function initializeKeys( keymap )
     {"F7", "Snap everything to grid"},
     {"Ctrl + F7", "Reset layout to linear layout based on track color"},    
     {"F8", "Weird stuff"},
+    {"CTRL + F8", "Toggle show only selected tracks"},
     {"F9", "Hide wires / Show only wires of selected tracks / Show wires"},  
     {"Ctrl + F10", "Open config file (windows only)"},
     {"F10", "Open FX editing list (windows only)"},
     {"F11", "Toggle use of track colors"},    
     {"F12", "Toggle key layout (0 = default, 1 = RMB drag, MMB insert machine)"},
-    {"CTRL + H", "Hide wires"},
     {"CTRL + R", "Set selection to record"},
     {"CTRL + S", "Save"},
     {"CTRL + Z", "Undo"},
@@ -491,6 +497,7 @@ local function initializeKeys( keymap )
     keys.toggleTrackColors = { 2, 2, 2, 2, 0, 0, 0, 6697264 } -- toggle track colors (F10)
     keys.customizeMachines = { 2, 2, 2, 2, 0, 0, 0, 6697265 } -- customize machine list (F11)
     keys.toggleKeymap = { 2, 2, 2, 2, 0, 0, 0, 6697266 } -- toggle key map (F12)
+    keys.showOnlySelected = { 2, 2, 2, 2, 1, 0, 0, 26168 }        -- Show only selected tracks (ctrl + F8)
     
     keys.addMachine         = {        2,    2,    1,    2,     2,     2,      2,      nil }    -- add machine (mmb)
     keys.drag               = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- drag field of view (rmb)
@@ -532,12 +539,12 @@ local function initializeKeys( keymap )
       {"F6", "Toggle snap to grid (off, on/non-visible, on/visible)"},
       {"F7", "Snap everything to grid"},
       {"F8", "Hide wires / Show only wires of selected tracks / Show wires"},  
+      {"CTRL + F8", "Toggle show only selected tracks"},
       {"F9", "Weird stuff"},
       {"Ctrl + F10", "Open config file (windows only)"},
       {"F10", "Toggle use of track colors"},
       {"F11", "Open FX editing list (windows only)"},
       {"F12", "Toggle key layout (0 = default, 1 = RMB drag, MMB insert machine)"},
-      {"CTRL + H", "Hide wires"},
       {"CTRL + R", "Set selection to record"},
       {"CTRL + S", "Save"},
       {"CTRL + Z", "Undo"},
@@ -3427,6 +3434,26 @@ function machineView:addTrack(track, x, y)
   return self.tracks[GUID]
 end
 
+function machineView:showOnlySelected()
+  if self.config.showOnlySelected == 1 then
+    for i,v in pairs(self.tracks) do
+      v.hidden = 1
+    end
+    for i,v in pairs(self.tracks) do
+      if v.selected == 1 then
+        self:unhideRecursively(v)
+      end
+    end
+  end
+end
+
+function machineView:unhideRecursively(track)
+  track.hidden = 0
+  for i,v in pairs(track.sinks) do
+    self:unhideRecursively(self.tracks[v:getTargetGUID()])
+  end
+end
+
 function machineView:hideMachines(force)
   for i,v in pairs(self.tracks) do
     if ( v.selected == 1 ) then
@@ -3436,12 +3463,9 @@ function machineView:hideMachines(force)
         v.hidden = 0
       else
         v.hidden = 1
-        --v:deselect()
       end
     end
   end
-  
-  --self:updateGUI()
 end
 
 function machineView:deleteMachines()
@@ -3996,6 +4020,7 @@ local function updateLoop()
     end
   end
   
+  self:showOnlySelected();
   self:updateGUI()
 
   -- More SFX
@@ -4433,6 +4458,16 @@ local function updateLoop()
           end
           if ( hideWires == 2 ) then
             self:printMessage( "Showing wires of selected tracks only" )
+          end
+        elseif ( inputs('showOnlySelected') ) then
+          self.config.showOnlySelected = 1 - self.config.showOnlySelected
+          if self.config.showOnlySelected == 1 then
+            self:printMessage( "Hiding non-selected tracks" )
+          else
+            self:printMessage( "Showing non-selected tracks" )
+            for i,v in pairs(self.tracks) do
+              v.hidden = 0
+            end
           end
         elseif ( inputs('customizeMachines') ) then
           launchTextEditor( getFXListFn() )
