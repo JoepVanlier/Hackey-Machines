@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="df5f8e9baa1989c6656ace9ee9572ed5ffb73332">
+<index version="1" name="Routing tools" commit="a36ecb44c0e06872fe3aabaf630b380061067bcd">
   <category name="MachineView">
     <reapack name="MachineView_exec.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -247,6 +247,11 @@ here
         <changelog><![CDATA[+ Moved night mode to persistent settings.
 + Fix bug that makes mouse disappear after painting.]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/df5f8e9baa1989c6656ace9ee9572ed5ffb73332/MachineView/MachineView_exec.lua</source>
+      </version>
+      <version name="0.79" author=": Joep Vanlier" time="2020-08-12T19:33:42Z">
+        <changelog><![CDATA[+ Add option to show only selected tracks.
++ Update help file to reflect current UX.]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/a36ecb44c0e06872fe3aabaf630b380061067bcd/MachineView/MachineView_exec.lua</source>
       </version>
     </reapack>
     <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines Loader">
