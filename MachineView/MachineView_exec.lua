@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.80
+@version 0.81
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.81 (2021-04-25)
+   + Add ENTER as shortcut for adding via regular FX browser.
+   + Make DBL click just open the FX browser. Set config option onlyShowTopEffect to 1 for old behavior.
  * v0.80 (2021-04-24)
    + Expose grid multiplicator as config value.
  * v0.79 (2020-08-12)
@@ -267,7 +270,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.80"
+scriptName = "Hackey Machines v0.81"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -357,6 +360,9 @@ machineView.cfgInfo.maxVolume       = 'Maximum volume boost factor (2=6dB)'
 machineView.config.gridmultiplier   = 0.5
 machineView.cfgInfo.gridmultiplier  = 'Grid Multiplier'
 
+machineView.config.onlyShowTopEffect = 0
+machineView.cfgInfo.onlyShowTopEffect  = 'If set to zero, double click opens the FX browser for that track. If this is set to 1 then doubleclick opens the top window.'
+
 -- Settings for the linear spacing algorithm
 machineView.linearyspacing = 75
 machineView.linearyspacingtop = 100
@@ -414,6 +420,7 @@ local function initializeKeys( keymap )
   keys.save               = {        2,    2,    2,    2,     1,     0,      0,      19 }           -- save (ctrl + s)
   keys.hideMachines       = {        2,    2,    2,    2,     0,     0,      0,      104 }          -- hide machines (h)
   keys.simulate           = {        2,    2,    2,    2,     1,     0,      0,      13 }           -- simulate (return)
+  keys.addfxbybrowser     = {        2,    2,    2,    2,     0,     0,      0,      13 }           -- add track and open FX browser
   keys.lineargraph        = {        2,    2,    2,    2,     1,     0,      0,      8 }            -- linearize ctrl + h
   keys.help               = {        2,    2,    2,    2,     0,     0,      0,      26161 }        -- help (F1)
   keys.selectAll          = {        2,    2,    2,    2,     1,     0,      0,      1 }            -- Select all (CTRL + A)
@@ -463,6 +470,7 @@ local function initializeKeys( keymap )
     {"Shift + Double click machine", "Open Hackey Trackey on that track (if MIDI data is available)"},
     {"Leftclick drag", "Select multiple machines"},
     {"Ctrl + Enter", "Simulate forces between machines"},
+    {"Enter", "Open FX browser on new track"},
     {"Del", "Delete machine"},
     {"H", "Hide machine"},
     {"T", "Toggle move TCP upon selection"},
@@ -614,6 +622,10 @@ local function print(...)
   end
   reaper.ShowConsoleMsg(...)
   reaper.ShowConsoleMsg("\n")
+end
+
+function fxBrowserOpen()
+  return reaper.GetToggleCommandStateEx(0,40271) == 1
 end
 
 -- Print contents of `tbl`, with indentation.
@@ -3090,6 +3102,8 @@ function block.create(track, x, y, config, viewer)
     end
     
     if ( inputs('mplscript', doubleClick) and self:checkHit( x, y ) ) then -- CTRL
+      reaper.SetMediaTrackInfo_Value(self.track, "I_SELECTED", 1)
+      reaper.TrackFX_SetOpen(self.track, 0, false)
       self.viewer:callScript(altDouble)
     elseif ( inputs('showvst', doubleClick) and self:checkHit( x, y ) ) then -- ALT
       reaper.TrackFX_Show(self.track, 0, 3)
@@ -3103,8 +3117,14 @@ function block.create(track, x, y, config, viewer)
       end
       self.viewer:callScript(hackeyTrackey)
     elseif inputs('trackfx', doubleClick) and self:checkHit( x, y ) then
-      reaper.TrackFX_SetOpen(self.track, 0, true)    
-      reaper.TrackFX_SetOpen(self.track, 0, true)
+      if self.viewer.config.onlyShowTopEffect == 0 then
+        reaper.TrackFX_Show(self.track, 0, 1)
+      else
+        reaper.TrackFX_Show(self.track, 0, 3)
+        reaper.TrackFX_SetOpen(self.track, 0, true) 
+      end
+       
+   
     end 
    
     -- No capture, release the handle
@@ -3948,6 +3968,49 @@ function machineView:pushPositions()
   stack[#stack+1] = copy
 end
 
+function machineView:addByFXBrowser()
+  local nTracks = reaper.GetNumTracks()
+  reaper.InsertTrackAtIndex(nTracks, true)
+  local newTrack = reaper.GetTrack(0, nTracks)
+  reaper.SetMediaTrackInfo_Value(newTrack, "B_MAINSEND", 0)
+
+  reaper.SetMediaTrackInfo_Value(newTrack, "I_SELECTED", 1)
+  reaper.TrackFX_SetOpen(newTrack, 0, false)
+  reaper.TrackFX_Show(newTrack, 0, 3)
+  
+  -- Open the FX browser
+  if not fxBrowserOpen() then
+    reaper.Main_OnCommand(40271, 0);
+  end
+  
+  local mx = ( gfx.mouse_x - origin[1]) / zoom
+  local my = ( gfx.mouse_y - origin[2]) / zoom
+  
+  self._fxBrowserAddInProgress = {newTrack, mx, my}
+  
+  local trackHandle = self:addTrack(newTrack, mx, my)
+  trackHandle:updateSinks()
+end
+
+function machineView:checkFinalizeAddByFXBrowser()
+  local cnt = 0
+  local newTrack, x, y = table.unpack(self._fxBrowserAddInProgress)
+  
+  if not reaper.ValidatePtr(newTrack, "MediaTrack*") then
+    self._fxBrowserAddInProgress = nil
+    return
+  end
+  
+  -- Was an effect added, then terminate
+  if reaper.TrackFX_GetCount(newTrack) > 0 then
+    if fxBrowserOpen() then
+      reaper.Main_OnCommand(40271, 0);
+    end
+  
+    self._fxBrowserAddInProgress = nil
+  end
+end
+
 function machineView:popPositions()
   if ( stack ) then
     local cstack = stack[#stack]
@@ -3994,6 +4057,10 @@ local function updateLoop()
   
   if ( focusRequested() == 1 ) then
     self:focusMe()
+  end
+  
+  if self._fxBrowserAddInProgress then
+    self:checkFinalizeAddByFXBrowser()
   end
   
   self:checkWindowChange()
@@ -4372,6 +4439,8 @@ local function updateLoop()
           self:redo()
         elseif ( inputs('save') )  then
           self:save()
+        elseif ( inputs('addfxbybrowser') ) then
+          self:addByFXBrowser()
         elseif ( inputs('hideMachines') ) then
           self:printMessage( "Toggle hide machines" )
           self:hideMachines()
