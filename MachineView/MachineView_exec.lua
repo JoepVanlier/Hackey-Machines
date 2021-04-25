@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.79
+@version 0.80
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.80 (2021-04-24)
+   + Expose grid multiplicator as config value.
  * v0.79 (2020-08-12)
    + Add option to show only selected tracks.
    + Update help file to reflect current UX.
@@ -265,7 +267,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.77"
+scriptName = "Hackey Machines v0.80"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -352,6 +354,9 @@ machineView.cfgInfo.rowSortMethod   = 'Row sorting method (do not edit).'
 machineView.config.maxVolume        = 2
 machineView.cfgInfo.maxVolume       = 'Maximum volume boost factor (2=6dB)'
 
+machineView.config.gridmultiplier   = 0.5
+machineView.cfgInfo.gridmultiplier  = 'Grid Multiplier'
+
 -- Settings for the linear spacing algorithm
 machineView.linearyspacing = 75
 machineView.linearyspacingtop = 100
@@ -409,8 +414,9 @@ local function initializeKeys( keymap )
   keys.save               = {        2,    2,    2,    2,     1,     0,      0,      19 }           -- save (ctrl + s)
   keys.hideMachines       = {        2,    2,    2,    2,     0,     0,      0,      104 }          -- hide machines (h)
   keys.simulate           = {        2,    2,    2,    2,     1,     0,      0,      13 }           -- simulate (return)
+  keys.lineargraph        = {        2,    2,    2,    2,     1,     0,      0,      8 }            -- linearize ctrl + h
   keys.help               = {        2,    2,    2,    2,     0,     0,      0,      26161 }        -- help (F1)
-  keys.selectAll          = {        2,    2,    2,    2,     1,     0,      0,      1 }           -- Select all (CTRL + A)
+  keys.selectAll          = {        2,    2,    2,    2,     1,     0,      0,      1 }            -- Select all (CTRL + A)
   keys.recGroup           = {        2,    2,    2,    2,     1,     0,      0,      18 }           -- set record group (ctrl + r)
   keys.showSignals        = {        2,    2,    2,    2,     0,     0,      0,      26162 }        -- toggle show signals (F2)
   keys.trackNames         = {        2,    2,    2,    2,     0,     0,      0,      26163 }        -- toggle show track names (F3)
@@ -4397,6 +4403,9 @@ local function updateLoop()
         elseif ( inputs('linear') ) then
           self:pushPositions()
           self:forceLinear()
+        elseif ( inputs('lineargraph') ) then
+          self:pushPositions()
+          self:buildGraph()
         elseif ( inputs('undomoves') ) then
           self:undoMoves()
         elseif ( inputs('showHidden') ) then
@@ -4529,11 +4538,11 @@ end
 
 function machineView:updateGridSize()
   if ( self.config.square == 1 ) then
-    self.config.gridx = 0.5 * self.config.blockHeight
-    self.config.gridy = 0.5 * self.config.blockHeight
+    self.config.gridx = self.config.gridmultiplier * self.config.blockHeight
+    self.config.gridy = self.config.gridmultiplier * self.config.blockHeight
   else
-    self.config.gridx = 0.5 * self.config.blockWidth
-    self.config.gridy = 0.5 * self.config.blockHeight
+    self.config.gridx = self.config.gridmultiplier * self.config.blockWidth
+    self.config.gridy = self.config.gridmultiplier * self.config.blockHeight
   end  
 end
 
@@ -4918,7 +4927,7 @@ function machineView:distribute(onlyFree)
     yl[i] = v.y    
   end
 
-  local dt = .05
+  local dt = .015
   for c = 1,15 do
     local fx, fy = self:calcForces()
     for i,v in pairs( self.tracks ) do
@@ -4992,6 +5001,202 @@ function machineView:buildColorTable()
   self.cSim = cSim
 end
 
+function machineView:getDistanceToMaster(depth, seen, track, master)
+  seen[track] = true
+  for i, sink in pairs(track.sinks) do
+    -- Make sure we don't crash for cyclic graphs
+    if not seen[self.tracks[sink.GUID]] then
+      if sink.GUID == master then
+        return depth + 1
+      else
+        return self:getDistanceToMaster(depth + 1, seen, self.tracks[sink.GUID], master)
+      end
+    end
+  end
+  return 0
+end
+
+function machineView:getGUIDOrderedByDepth(tips, masterGUID)
+  local maxDepth = 0
+  local depth = 0
+  local depthLevels = {}
+  for guid, track in pairs(self.tracks) do
+    if track ~= masterGUID then
+      depth = self:getDistanceToMaster(0, {}, track, masterGUID)
+      maxDepth = math.max(depth, maxDepth)
+      if not depthLevels[depth] then
+        depthLevels[depth] = {}
+      end
+      depthLevels[depth][#depthLevels[depth] + 1] = guid
+    end
+  end
+  
+  -- Get the approximate node complexity
+  -- We wanna place the more complex nodes first.
+  nodeComplexity = {}
+  for depth=0,maxDepth do
+    for idx, guid in pairs(depthLevels[depth]) do
+      nodeComplexity[guid] = 1
+      for j, sink in pairs(self.tracks[guid].sinks) do
+        nodeComplexity[guid] = nodeComplexity[guid] + (nodeComplexity[sink.GUID] or 1)
+        if tips[guid] then
+          nodeComplexity[guid] = nodeComplexity[guid] + 100
+        end
+      end
+    end
+  end
+  
+  -- Set up the placement order.
+  local depthList = {}
+  for depth = 0, maxDepth do
+    for idx, guid in pairs(depthLevels[depth]) do
+      depthList[#depthList + 1] = {GUID=guid}
+    end
+  end
+  
+  table.sort(depthList, function(a, b) return (nodeComplexity[b.GUID] or 1) > (nodeComplexity[a.GUID] or 1) end)  
+  
+  return depthList, maxDepth
+end
+
+function find_idx(t, element)
+  for i, v in pairs(t) do
+    if v.GUID == element then
+      return i
+    end
+  end
+end
+
+function machineView:buildGraph()
+  -- Find out which are sources
+  local tips = {}
+  for idx, track in pairs(self.tracks) do
+    tips[idx] = track.GUID
+  end
+  for idx, track in pairs(self.tracks) do
+    for idx2, sink in pairs(track.sinks) do
+      tips[sink.GUID] = nil
+    end
+  end
+
+  -- Find distance to master
+  local masterGUID = reaper.GetTrackGUID(reaper.GetMasterTrack(0))
+  local depthList, maxDepth = self:getGUIDOrderedByDepth(tips, masterGUID)
+  
+  -- Maintain occupancy list
+  local function checkOccupancy(occupancyMatrix, depth, row, GUID, preferredDirection)
+    -- See if a spot is free, and divert to another if it was already taken
+    -- Input args:
+    --   occupancy matrix : two layer table of GUIDs
+    --     stores the current setup
+    --   depth, row : float
+    --     wanted position
+    --   preferredDirection
+    --     direction to move into when already occupied
+    
+    -- Level doesn't exist, just create it.
+    if not occupancyMatrix[depth] then
+      occupancyMatrix[depth] = {}
+      occupancyMatrix[depth][row] = GUID
+      return depth, row
+    end
+    
+    -- To place something at the top layer, make sure the whole row is empty
+    local rowEmptyForTopLevel = true
+    if depth == maxDepth then
+      for loc in 0, maxDepth do
+        rowEmptyForTopLevel = rowEmptyForTopLevel and (not occupyMatrix[loc] or not occupancyMatrix[loc][row])
+      end
+    end
+    
+    if not occupancyMatrix[depth][row] and rowEmptyForTopLevel then
+      occupancyMatrix[depth][row] = GUID
+      return depth, row
+    end
+    
+    -- This spot is already taken. Divert!
+    return checkOccupancy(occupancyMatrix, depth, row + preferredDirection, GUID, preferredDirection)
+  end
+ 
+  local function findTopLevelParent(depthList, GUID)
+    local topParents = {}
+    -- Find top level parents that lead into GUID
+    for idx, ref in pairs(depthList) do
+      -- Check whether we are top level
+      if tips[ref.GUID] then
+        -- Check if we are in the sinks of this node
+        for i, v in pairs(self.tracks[ref.GUID].sinks) do
+          if v.GUID == GUID then
+            topParents[#topParents + 1] = ref.GUID
+          end
+        end
+      end
+    end
+    return topParents
+  end
+  
+  local function placeDirectParents(occupancyMatrix, depthList, row, GUID, preferredDirection)
+    local parents = findTopLevelParent(depthList, GUID)
+    for idx, parent in pairs(parents) do
+      local parentDepth, parentRow = checkOccupancy(occupancyMatrix, 0, row, parent, preferredDirection)
+      local idx = find_idx(depthList, parent)
+      table.remove(depthList, idx)
+      self.tracks[parent].x = 0
+      self.tracks[parent].y = parentRow * 80
+    end
+  end
+  
+  local function traverseChain(occupancyMatrix, depth, row, depthList, track, preferredDirection)
+    depth = depth + 1
+    for idx, sink in pairs(track.sinks) do
+      if depthList then
+        local idx = find_idx(depthList, sink.GUID)
+        
+        -- If it doesn't have a place yet
+        if idx then
+          table.remove(depthList, idx)
+          depth, row = checkOccupancy(occupancyMatrix, depth, row, sink.GUID, preferredDirection)
+          
+          self.tracks[sink.GUID].x = depth * 160
+          self.tracks[sink.GUID].y = row * 80
+          
+          -- Find all the top level parents that have not yet been assigned and place them at the origin.
+          placeDirectParents(occupancyMatrix, depthList, row, sink.GUID, -preferredDirection);
+          
+          -- Traverse further
+          traverseChain(occupancyMatrix, depth, row, depthList, self.tracks[sink.GUID], -preferredDirection);
+        end
+      end
+    end
+  end
+
+  --[[
+  Algorithm
+    1 - Assign all endpoints to the deepest layer (nodes with no sinks that are not master).
+    2 - First, look for a node with deepest depth.
+    3 - Follow it to the next node.
+    4 - Find all nodes at the lowest layer that are connected to this node.
+    5 - Repeat 3, 4 until we hit master, then go back to 2
+  ]]--
+  
+  -- Matrix that keeps track of the full spots
+  local occupancyMatrix = {}
+  
+  local current_placement_row = 1;
+  local preferredDirection = 1
+  while (#depthList > 0) do 
+    local origin = table.remove(depthList, #depthList).GUID
+    _, current_placement_row = checkOccupancy(occupancyMatrix, 0, current_placement_row, origin, preferredDirection)
+    
+    self.tracks[origin].x = 0
+    self.tracks[origin].y = current_placement_row * 80
+    
+    traverseChain(occupancyMatrix, 0, current_placement_row, depthList, self.tracks[origin], 1);
+    
+    current_placement_row = current_placement_row + 1
+  end
+end
+
 
 function machineView:calcForces()
   local cDiffs = self.cDiffs
@@ -5009,8 +5214,8 @@ function machineView:calcForces()
   local masterGUID = reaper.GetTrackGUID( reaper.GetMasterTrack(0) )
   
   local xx, xy, sx, sy, rx, ry
-  local k = 3e-2
-  local Q = 5.3e2
+  local k = 2e-2
+  local Q = 15.3e2
   local N = 0
   for i,v in pairs( self.tracks ) do
     N = N + 1
