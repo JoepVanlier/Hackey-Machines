@@ -2,18 +2,23 @@
 A LUA modular interface plugin for REAPER 5.9x and up. Designed to mimick the machine editor in Jeskola Buzz.
 
 ![Record status handling](https://i.imgur.com/S2ZVhti.gif)
+
 Recording status handling
 
 ![Highlight signal chain](https://i.imgur.com/llYLrCr.gif)
+
 Highlight signal chain
 
 ![Importing templates](https://i.imgur.com/WaQWCRC.gif)
+
 Importing templates.
 
 ![Manipulate channels](https://i.imgur.com/jKxfOnN.gif)
+
 Manipulation of volume, panning, name, solo/mute status, to/from channel.
 
 ![Deleting machines](https://i.imgur.com/bUEdAUR.gif)
+
 Deleting machines
 
 ## Installation
@@ -25,7 +30,10 @@ Add it in your Reapack repository list: `https://raw.githubusercontent.com/joepv
 - click the ReaScript: `Load` button
 
 ### Install SWS extensions
-Hackey Machines require the SWS extensions for REAPER, which can be found here: `http://www.sws-extension.org/`
+Hackey Machines require the SWS extensions for REAPER, which can be found [here](http://www.sws-extension.org/)
+
+### Signal analysis
+If you want the signal analysis button to work, you will need to install the spectral analyzer from [this repo](https://github.com/JoepVanlier/JSFX) as well.
 
 ### Configure which machines to see in the "Insert machine" window.
 On Windows F10 opens the config file, where you can set which machines you would like to see in the insert machine dropdown window.
