@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.82
+@version 0.83
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,15 @@
 
 --[[
  * Changelog:
+ * v0.83 (2022-01-02)
+   + Don't update selection when dragging area has zero size.
+   + Always show master.
+   + Always show unconnected nodes.
+   + Don't update the selection when connecting machines.
+   + When using drag select: only update selection immediately if we are not in one of the modes that hide non selected blocks.
+   + Make sure analyzer is hidden for special "show only X"-modes.
+   + Add little note icon for channel being monitored.
+   + Handle cyclic graphs a bit better (traverse both ways once).
  * v0.82 (2022-01-01)
    + Add mode for showing all related tracks.
    + Prevent possible recursion bug in hide traversal.
@@ -273,7 +282,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.81"
+scriptName = "Hackey Machines v0.83"
 altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
@@ -1982,7 +1991,7 @@ function box_ctrls.create(viewer, x, y, track, parent, forceBig)
     gfx.line( xc, yc, xe, yc )
     gfx.line( xe, yc, xe, ye )    
     gfx.line( xc, ye, xe, ye )
-    gfx.line( xc, yc, xc, ye )    
+    gfx.line( xc, yc, xc, ye )
     
     for i,v in pairs(self.ctrls) do
       v:draw()
@@ -2823,11 +2832,17 @@ function block.create(track, x, y, config, viewer)
         rec = self.bg
       end
       
+      for i, sink in pairs(self.sinks) do
+        if ( machineView.tracks[sink:getTargetGUID()].name == machineView.specname ) then
+          str = str .. " " .. utf8.char( 9835 )
+        end
+      end
+      
       -- Draw routine
       if ( muted == 1 or blockedBySolo ) then
         box( self.x, self.y, self.w, self.h, str, self.line, self.mutedfg, self.mutedbg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, colors.muteColor, self.selectionColor, rec, center, not notSolo )
       else
-        box( self.x, self.y, self.w, self.h, self.name, self.line, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec, center, not notSolo )
+        box( self.x, self.y, self.w, self.h, str, self.line, self.fg, self.bg, self.xo, self.yo, self.w2, self.h2, showSignals, colors.signalColor, self.data, self.dataloc, self.dataN, rnc, self.hidden, self.selectedOpacity, self.playColor, self.selectionColor, rec, center, not notSolo )
       end
     end
   end
@@ -2995,8 +3010,11 @@ function block.create(track, x, y, config, viewer)
   
           -- Is this the initial click?
           if ( not self.selectChange ) then
-            self.selectChange = 1
-            self:evaluateSelection()
+            -- Don't make this the selection is we're connecting machines.
+            if (not inputs('addSink') and not inputs('addSinkSecond')) then
+              self.selectChange = 1
+              self:evaluateSelection()
+            end
           end
         end
         
@@ -3465,44 +3483,65 @@ end
 
 function machineView:showOnlySelected()
   if self.config.showOnlySelected > 0 then
+    self:buildReverseTree()
+    
+    local next = next
     for i,v in pairs(self.tracks) do
       v.hidden = 1
+      -- If it has no parents or sinks, don't hide it.
+      -- It's probably something the user still wants to connect.
+      if (next(v.parents) == nil) and (next(v.sinks) == nil) then
+        v.hidden = 0
+      end
     end
     
-    if self.config.showOnlySelected == 2 then
-      self:buildReverseTree()
+    for i, track in pairs(self.tracks) do
+      for j, w in pairs(track.sinks) do
+        w.seen_fwd = nil
+        w.seen_bwd = nil
+      end
     end
     
     for i,v in pairs(self.tracks) do
       if v.selected == 1 then
         if self.config.showOnlySelected == 2 then
           self:unhideRecursivelyUp(v)
+        else
+          self:unhideRecursively(v)
         end
-        
-        self:unhideRecursively(v)
+      end
+      if v.isMaster == 1 then
+        v.hidden = 0
       end
     end
   end
-end
-
-function machineView:unhideRecursively(track)
-  if track.hidden == 1 then  -- Prevent infinite recursion in cyclic graph
-    track.hidden = 0
-    for i,v in pairs(track.sinks) do
-      self:unhideRecursively(self.tracks[v:getTargetGUID()])
+  
+  for i,v in pairs(self.tracks) do
+    if ( v.name == self.specname ) then
+      v.hidden = 1
     end
   end
 end
 
-function machineView:unhideRecursivelyUp(track, unhide)
-  -- Traverses machines upwards, unhiding the ones upstream of this one
-  if track.hidden == 1 then
-    if unhide then
-      track.hidden = 0
+function machineView:unhideRecursively(track, bothways)
+  track.hidden = 0
+  for i,v in pairs(track.sinks) do
+    local target = self.tracks[v:getTargetGUID()]
+    if not v.seen_bwd then
+      v.seen_bwd = 1
+      self:unhideRecursively(target)
     end
-    if track.parents then
-      for j, parent_sink in pairs(track.parents) do
-        self:unhideRecursivelyUp(self.tracks[parent_sink:getSourceGUID()], 1)
+  end
+end
+
+function machineView:unhideRecursivelyUp(track)
+  -- Traverses machines upwards, unhiding the ones upstream of this one
+  self:unhideRecursively(track)
+  if track.parents then
+    for j, parent_sink in pairs(track.parents) do
+      if not parent_sink.seen_fwd then
+        parent_sink.seen_fwd = 1
+        self:unhideRecursivelyUp(self.tracks[parent_sink:getSourceGUID()])
       end
     end
   end
@@ -3672,7 +3711,7 @@ function machineView:moveObjects( diffx, diffy )
 end
 
 function machineView:selectMachines()
-  if ( ( gfx.mouse_cap & 1 ) > 0 ) then
+  if self.lastLeft then
     self.dragSelect[3] = self.dragSelect[3] + .05
     if ( self.dragSelect[3] > 0.3 ) then
       self.dragSelect[3] = 0.3
@@ -3691,6 +3730,10 @@ function machineView:selectMachines()
       local t = ymi
       ymi = yma
       yma = t
+    end
+    
+    if ((xma - xmi) + (yma - ymi)) < 3 then
+      return
     end
         
     gfx.line(xmi, ymi, xma, ymi)
@@ -3724,11 +3767,17 @@ function machineView:selectMachines()
           end
         end
         
-        if ( hit == 1 ) then
-          v:select()
-        else
-          if ( not inputs('additiveSelect') ) then
-            v:deselect()
+        -- Only update selection immediately if we are not in one of the modes that
+        -- hide non selected blocks.
+        local update_now = (self.config.showOnlySelected == 0) or (gfx.mouse_cap & 1 == 0)
+        
+        if update_now then 
+          if ( hit == 1 ) then
+            v:select()
+          else
+            if ( not inputs('additiveSelect') ) then
+              v:deselect()
+            end
           end
         end
       end
@@ -3736,6 +3785,7 @@ function machineView:selectMachines()
   else
     self.dragSelect = nil
   end
+  self.lastLeft = ( gfx.mouse_cap & 1 ) > 0
 end
 
 function machineView:updateSelection()
