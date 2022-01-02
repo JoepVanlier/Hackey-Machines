@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="b57b71953c317e4a8456d9452f110d1ec13c5288">
+<index version="1" name="Routing tools" commit="6a3cb3a646aeec9b6696211b616c6fe7fa818264">
   <category name="MachineView">
     <reapack name="MachineView_exec.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -266,6 +266,17 @@ here
         <changelog><![CDATA[+ Add mode for showing all related tracks.
 + Prevent possible recursion bug in hide traversal.]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/b57b71953c317e4a8456d9452f110d1ec13c5288/MachineView/MachineView_exec.lua</source>
+      </version>
+      <version name="0.83" author=": Joep Vanlier" time="2022-01-02T15:31:14Z">
+        <changelog><![CDATA[+ Don't update selection when dragging area has zero size.
++ Always show master.
++ Always show unconnected nodes.
++ Don't update the selection when connecting machines.
++ When using drag select: only update selection immediately if we are not in one of the modes that hide non selected blocks.
++ Make sure analyzer is hidden for special "show only X"-modes.
++ Add little note icon for channel being monitored.
++ Handle cyclic graphs a bit better (traverse both ways once).]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/6a3cb3a646aeec9b6696211b616c6fe7fa818264/MachineView/MachineView_exec.lua</source>
       </version>
     </reapack>
     <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines Loader">
