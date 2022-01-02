@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * v0.82 (2022-01-01)
+   + Add mode for showing all related tracks.
+   + Prevent possible recursion bug in hide traversal.
  * v0.81 (2021-04-25)
    + Add ENTER as shortcut for adding via regular FX browser.
    + Make DBL click just open the FX browser. Set config option onlyShowTopEffect to 1 for old behavior.
@@ -3461,12 +3464,21 @@ function machineView:addTrack(track, x, y)
 end
 
 function machineView:showOnlySelected()
-  if self.config.showOnlySelected == 1 then
+  if self.config.showOnlySelected > 0 then
     for i,v in pairs(self.tracks) do
       v.hidden = 1
     end
+    
+    if self.config.showOnlySelected == 2 then
+      self:buildReverseTree()
+    end
+    
     for i,v in pairs(self.tracks) do
       if v.selected == 1 then
+        if self.config.showOnlySelected == 2 then
+          self:unhideRecursivelyUp(v)
+        end
+        
         self:unhideRecursively(v)
       end
     end
@@ -3474,9 +3486,25 @@ function machineView:showOnlySelected()
 end
 
 function machineView:unhideRecursively(track)
-  track.hidden = 0
-  for i,v in pairs(track.sinks) do
-    self:unhideRecursively(self.tracks[v:getTargetGUID()])
+  if track.hidden == 1 then  -- Prevent infinite recursion in cyclic graph
+    track.hidden = 0
+    for i,v in pairs(track.sinks) do
+      self:unhideRecursively(self.tracks[v:getTargetGUID()])
+    end
+  end
+end
+
+function machineView:unhideRecursivelyUp(track, unhide)
+  -- Traverses machines upwards, unhiding the ones upstream of this one
+  if track.hidden == 1 then
+    if unhide then
+      track.hidden = 0
+    end
+    if track.parents then
+      for j, parent_sink in pairs(track.parents) do
+        self:unhideRecursivelyUp(self.tracks[parent_sink:getSourceGUID()], 1)
+      end
+    end
   end
 end
 
@@ -4538,11 +4566,16 @@ local function updateLoop()
             self:printMessage( "Showing wires of selected tracks only" )
           end
         elseif ( inputs('showOnlySelected') ) then
-          self.config.showOnlySelected = 1 - self.config.showOnlySelected
-          if self.config.showOnlySelected == 1 then
-            self:printMessage( "Hiding non-selected tracks" )
+          self.config.showOnlySelected = self.config.showOnlySelected + 1
+          if self.config.showOnlySelected > 2 then
+            self.config.showOnlySelected = 0
+          end
+          if self.config.showOnlySelected == 2 then
+            self:printMessage( "Hiding tracks not related to selected track (mode 2)" )
+          elseif self.config.showOnlySelected == 1 then
+            self:printMessage( "Hiding tracks not downstream of selected track (mode 1)" )
           else
-            self:printMessage( "Showing non-selected tracks" )
+            self:printMessage( "Showing non-selected tracks (mode 0)" )
             for i,v in pairs(self.tracks) do
               v.hidden = 0
             end
