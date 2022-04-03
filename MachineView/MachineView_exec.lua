@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.83
+@version 0.84
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.84 (2022-04-03)
+   + Remove mpl wiredchain.
  * v0.83 (2022-01-02)
    + Don't update selection when dragging area has zero size.
    + Always show master.
@@ -282,8 +284,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.83"
-altDouble = "MPL Scripts/FX/mpl_WiredChain (background).lua"
+scriptName = "Hackey Machines v0.84"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
 machineView = {}
@@ -413,7 +414,6 @@ local function initializeKeys( keymap )
   keys.move               = {        1,    2,    2,    2,     2,     2,      2,      nil }    -- move machine around (lmb)
   keys.addSink            = {        2,    2,    2,    2,     2,     2,      1,      nil }    -- drag a cable out (shift, note that this is combined with move)
   keys.addSinkSecond      = {        2,    2,    2,    2,     1,     2,      1,      nil }    -- drag a cable out (shift, note that this is combined with move)
-  keys.mplscript          = {        1,    0,    0,    1,     1,     0,      0,      nil }    -- ctrl + doubleclick
   keys.hackey             = {        1,    0,    0,    1,     0,     0,      1,      nil }    -- shift + doubleclick
   keys.showvst            = {        1,    0,    0,    1,     0,     1,      0,      nil }    -- alt + doubleclick
   keys.trackfx            = {        1,    0,    0,    1,     0,     0,      0,      nil }    -- doubleclick
@@ -478,7 +478,6 @@ local function initializeKeys( keymap )
     {"Shift + Scrollwheel", "Adjust zoom level (10x slower)"},  
     {"Double click machine", "Open FX list"},
     {"Alt + Double click machine", "Open machine VST GUI"},  
-    {"Ctrl + Double click machine", "Open FX list with MPL Wiredchain (needs to be installed)"},    
     {"Shift + Double click machine", "Open Hackey Trackey on that track (if MIDI data is available)"},
     {"Leftclick drag", "Select multiple machines"},
     {"Ctrl + Enter", "Simulate forces between machines"},
@@ -549,7 +548,6 @@ local function initializeKeys( keymap )
       {"Shift + Scrollwheel", "Adjust zoom level (10x slower)"},  
       {"Double click machine", "Open FX list"},
       {"Alt + Double click machine", "Open machine VST GUI"},  
-      {"Ctrl + Double click machine", "Open FX list with MPL Wiredchain (needs to be installed)"},    
       {"Shift + Double click machine", "Open Hackey Trackey on that track (if MIDI data is available)"},
       {"Leftclick drag", "Select multiple machines"},
       {"Ctrl + Enter", "Simulate forces between machines"},
@@ -3122,11 +3120,7 @@ function block.create(track, x, y, config, viewer)
       return;
     end
     
-    if ( inputs('mplscript', doubleClick) and self:checkHit( x, y ) ) then -- CTRL
-      reaper.SetMediaTrackInfo_Value(self.track, "I_SELECTED", 1)
-      reaper.TrackFX_SetOpen(self.track, 0, false)
-      self.viewer:callScript(altDouble)
-    elseif ( inputs('showvst', doubleClick) and self:checkHit( x, y ) ) then -- ALT
+    if ( inputs('showvst', doubleClick) and self:checkHit( x, y ) ) then -- ALT
       reaper.TrackFX_Show(self.track, 0, 3)
       reaper.TrackFX_SetOpen(self.track, 0, true)                
     elseif ( inputs('hackey', doubleClick) and self:checkHit( x, y ) ) then -- Shift
