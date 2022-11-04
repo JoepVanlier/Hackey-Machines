@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.84
+@version 0.85
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.85 (2022-11-04)
+   + Add menu to dock on the top left (right mouse click on the little triangle that appears there).
  * v0.84 (2022-04-03)
    + Remove mpl wiredchain.
  * v0.83 (2022-01-02)
@@ -284,15 +286,18 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.84"
+scriptName = "Hackey Machines v0.85"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
+gfx.ext_retina = 1
 machineView = {}
 machineView.tracks = {}
 machineView.config = {}
 machineView.cfgInfo = {}
 
 machineView.specname = "___SIGNAL_ANALYZER___"
+
+machineView.triangleVisible = 0
 
 machineView.config.analyzerOn       = 1
 machineView.cfgInfo.analyzerOn      = "Show analyzer as a context option."
@@ -4167,6 +4172,24 @@ local function updateLoop()
   
   self:showOnlySelected();
   self:updateGUI()
+  
+  if (gfx.mouse_x < 15 * gfx.ext_retina) or (gfx.mouse_y < 15 * gfx.ext_retina) then
+    self.triangleVisible = self.triangleVisible + 0.4 * (1.0 - self.triangleVisible)
+    
+    if gfx.mouse_cap == 2 then
+      local was_docked = gfx.dock(-1)
+      gfx.x = gfx.mouse_x
+      gfx.y = gfx.mouse_y
+      local menu_str = string.format("%sDock window", was_docked > 0 and "!" or "")
+      local menu_response = gfx.showmenu(menu_str)
+      if menu_response == 1 then
+        gfx.dock(1 - was_docked)
+      end
+    end
+  end
+  self.triangleVisible = 0.9 * self.triangleVisible;
+  gfx.set(0.8, 0.8, 0.8, self.triangleVisible)
+  gfx.triangle(0, 0, 15 * gfx.ext_retina, 0, 0, 15 * gfx.ext_retina);
 
   -- More SFX
   if ( SFX == 1 ) then
