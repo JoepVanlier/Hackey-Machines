@@ -86,7 +86,7 @@ end
 local function preMain()
   reaper.SetProjExtState(0, extStateIdx, focusTag, tonumber(1))
   
-  local fn = reaper.GetResourcePath() .. '//' .. "Reaper-kb.ini"
+  local fn = reaper.GetResourcePath() .. '//' .. "reaper-kb.ini"
   local f = io.open(fn, "r")
   if f then
     commandID = findCommandID(fn, scriptName)
