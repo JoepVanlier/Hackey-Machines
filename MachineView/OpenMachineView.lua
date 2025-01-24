@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.36
+@version 0.37
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
