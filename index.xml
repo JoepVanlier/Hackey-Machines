@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="23ee8cd9fda0af34000c2928714aa7c28080aa64">
+<index version="1" name="Routing tools" commit="7aabf2dd65499a6febc29d3789e91caa95314360">
   <category name="MachineView">
     <reapack name="MachineView_exec.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs28 Hackey-Machines\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs24 What is it?\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Hackey-Machines\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel3 \b \fs24 What is it?\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 A lightweight machine plugin for REAPER 5.x and up.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 Usage\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 Hackey Machines provides an alternative way for visualizing and manipulating the routing in REAPER. Press F1 for an in-plugin help file.\par}
@@ -285,6 +285,10 @@ here
       <version name="0.85" author=": Joep Vanlier" time="2022-11-04T22:43:11Z">
         <changelog><![CDATA[+ Add menu to dock on the top left (right mouse click on the little triangle that appears there).]]></changelog>
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/461add06b7729fca225d17133b3289880830d946/MachineView/MachineView_exec.lua</source>
+      </version>
+      <version name="0.86" author=": Joep Vanlier" time="2025-02-17T17:58:10Z">
+        <changelog><![CDATA[+ Only start dragging when left mouse was previously up]]></changelog>
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/7aabf2dd65499a6febc29d3789e91caa95314360/MachineView/MachineView_exec.lua</source>
       </version>
     </reapack>
     <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines Loader">
