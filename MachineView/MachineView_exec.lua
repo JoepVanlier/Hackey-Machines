@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.85
+@version 0.86
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog:
+ * v0.86 (2025-02-17)
+   + Only start dragging when left mouse was previously up
  * v0.85 (2022-11-04)
    + Add menu to dock on the top left (right mouse click on the little triangle that appears there).
  * v0.84 (2022-04-03)
@@ -3480,7 +3482,31 @@ function machineView:addTrack(track, x, y)
   return self.tracks[GUID]
 end
 
+local function simple_hash(...)
+    local h = 0
+    for _, s in ipairs({...}) do
+        for i = 1, #s do
+            h = ((h * 31) ~ string.byte(s, i)) % (2^32)
+        end
+    end
+    return h
+end
+
 function machineView:showOnlySelected()
+  -- Only update the view when selections have changed
+  local strs = {}
+  for i, v in pairs(self.tracks) do
+    if (self.selected) then
+      strs[#strs + 1] = i;
+    end
+  end
+  selection_hash = simple_hash(table.unpack(strs));
+  
+  if (last_selection_hash and (last_selection_has == selection_hash)) then
+    return;
+  end
+  last_selection_hash = selection_hash;
+
   if self.config.showOnlySelected > 0 then
     self:buildReverseTree()
     
@@ -4452,7 +4478,7 @@ local function updateLoop()
         
         -- Still nothing, then opt for opening the menu or the drag option
         if ( not captured ) then
-          if ( ( gfx.mouse_cap & 1 ) > 0 ) then
+          if ( ( ( gfx.mouse_cap & 1 ) > 0 ) and ((last_cap & 1) == 0) ) then
             self.dragSelect = { gfx.mouse_x, gfx.mouse_y, 0, 0 }
           elseif ( inputs('addMachine') ) then
             if ( gfx.mouse_cap & 8 > 0 ) then
@@ -4691,6 +4717,8 @@ local function updateLoop()
         end
       end
     end
+    
+    last_cap = gfx.mouse_cap;
 end
 
 function machineView:terminate()
@@ -5925,5 +5953,6 @@ function machineView:loadPositions()
   self:buildColorTable()
 end
 
+last_cap = 0;
 palette:init()
 Main()
