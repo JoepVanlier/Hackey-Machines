@@ -30,6 +30,7 @@
  * Changelog
  * v0.87 (2025-11-08)
    + Add scrolling options for trackpad compatibility (alt/option + drag)
+   + Fixed bug where adding a machine did not respect addition location.
  * v0.86 (2025-02-17)
    + Only start dragging when left mouse was previously up
  * v0.85 (2022-11-04)
@@ -4377,14 +4378,18 @@ local function updateLoop()
           end
         else
           local ret, val, ix, iy = self.FX_list:draw()
-          if ( ret < 0 ) then
+          if (ret < 0) then
             self.insertingMachine = nil
             self.FX_list = nil
           end
-          if ( ret > 0 ) then
+          if (ret > 0) then
             self.insertingMachine = nil
             self.FX_list = nil
-            if ( val[2] == "Templates" ) then
+
+            ix = (ix - origin[1]) / zoom
+            iy = (iy - origin[2]) / zoom
+            
+            if (val[2] == "Templates") then
               self:insertTemplate(val, ix, iy)
             else
               self:insertMachine(val[#val], ix, iy)
