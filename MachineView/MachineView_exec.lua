@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.86
+@version 0.87
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -26,10 +26,10 @@
 --]]
 
 --[[
- * Changelog:
  * Changelog
  * v0.87 (2025-11-08)
    + Add scrolling options for trackpad compatibility (alt/option + drag)
+   + Fixed bug where two mouse clicks were required to drag a region.
    + Fixed bug where adding a machine did not respect addition location.
  * v0.86 (2025-02-17)
    + Only start dragging when left mouse was previously up
@@ -292,7 +292,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.85"
+scriptName = "Hackey Machines v0.87"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
 gfx.ext_retina = 1
@@ -3744,7 +3744,7 @@ function machineView:moveObjects( diffx, diffy )
 end
 
 function machineView:selectMachines()
-  if self.lastLeft then
+  if ( gfx.mouse_cap & 1 ) > 0 then
     self.dragSelect[3] = self.dragSelect[3] + .05
     if ( self.dragSelect[3] > 0.3 ) then
       self.dragSelect[3] = 0.3
@@ -3765,9 +3765,9 @@ function machineView:selectMachines()
       yma = t
     end
     
-    if ((xma - xmi) + (yma - ymi)) < 3 then
-      return
-    end
+    --if ((xma - xmi) + (yma - ymi)) < 3 then
+    --  return
+    --end
         
     gfx.line(xmi, ymi, xma, ymi)
     gfx.line(xmi, yma, xma, yma)
@@ -3818,7 +3818,6 @@ function machineView:selectMachines()
   else
     self.dragSelect = nil
   end
-  self.lastLeft = ( gfx.mouse_cap & 1 ) > 0
 end
 
 function machineView:updateSelection()
@@ -4489,9 +4488,11 @@ local function updateLoop()
           end      
         end        
         
+        captured = self:handleDrag(captured)
+        
         -- Still nothing, then opt for opening the menu or the drag option
         if ( not captured ) then
-          if ( ( ( gfx.mouse_cap & 1 ) > 0 ) and ((last_cap & 1) == 0) ) then
+          if ( ( ( gfx.mouse_cap & 1 ) > 0 ) and ((last_cap & 1) == 0)) then
             self.dragSelect = { gfx.mouse_x, gfx.mouse_y, 0, 0 }
           elseif ( inputs('addMachine') ) then
             if ( gfx.mouse_cap & 8 > 0 ) then
@@ -4512,7 +4513,6 @@ local function updateLoop()
       if ( not captured ) then
         self:handleZoom(mx, my)
       end
-      self:handleDrag()
     
       if ( self.iter and self.iter > 0 ) then
         machineView:distribute()
