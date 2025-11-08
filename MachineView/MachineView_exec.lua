@@ -27,6 +27,9 @@
 
 --[[
  * Changelog:
+ * Changelog
+ * v0.87 (2025-11-08)
+   + Add scrolling options for trackpad compatibility (alt/option + drag)
  * v0.86 (2025-02-17)
    + Only start dragging when left mouse was previously up
  * v0.85 (2022-11-04)
@@ -426,6 +429,7 @@ local function initializeKeys( keymap )
   keys.trackfx            = {        1,    0,    0,    1,     0,     0,      0,      nil }    -- doubleclick
   keys.additiveSelect     = keys.multiSelect                                                  -- ctrl + drag select additively adds machines
   keys.drag               = {        2,    2,    1,    2,     2,     2,      2,      nil }    -- drag field of view (mmb)
+  keys.drag2              = {        1,    2,    2,    2,     2,     1,      2,      nil }    -- drag field of view (ctrl + lmb)
   keys.addMachine         = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- add machine (rmb)
   keys.movetcp            = {        2,    2,    2,    2,     2,     2,      2,      116 }          -- toggle move tcp
   keys.movemixer          = {        2,    2,    2,    2,     2,     2,      2,      109 }          -- toggle move mixer
@@ -478,6 +482,7 @@ local function initializeKeys( keymap )
     {"Shift + right click background", "Insert machine from reaper wide categories"},  
     {"Middle click object", "Delete signal cable or machine"},
     {"Middle click drag", "Shift field of view"},
+    {"Alt + Left click drag", "Shift field of view"},
     {"Scrollwheel", "Adjust zoom level"},
     {"Page up", "Minimal Zoom"},
     {"Page down", "Default Zoom"},
@@ -533,6 +538,7 @@ local function initializeKeys( keymap )
     
     keys.addMachine         = {        2,    2,    1,    2,     2,     2,      2,      nil }    -- add machine (mmb)
     keys.drag               = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- drag field of view (rmb)
+    keys.drag2              = {        1,    2,    2,    2,     2,     1,      2,      nil }    -- drag field of view (ctrl + lmb)
     
     help = {
       {"Shift drag machine", "Connect machines"},    
@@ -548,6 +554,7 @@ local function initializeKeys( keymap )
       {"Shift + right click background", "Insert machine from reaper wide categories"},  
       {"Alt + left click", "Delete signal cable or machine"},
       {"Middle click drag", "Shift field of view"},
+      {"Alt + left click drag", "Shift field of view"},
       {"Scrollwheel", "Adjust zoom level"},
       {"Page up", "Minimal Zoom"},
       {"Page down", "Default Zoom"},
@@ -3875,9 +3882,8 @@ function machineView:handleZoom(mx, my)
 end
 
 
-function machineView:handleDrag()
---  if ( ( gfx.mouse_cap & 64 ) > 0 ) then
-  if ( inputs('drag') ) then
+function machineView:handleDrag(captured)
+  if ( not captured and (inputs('drag') or inputs('drag2')) ) then
     if ( self.ldragx ) then
       local dx = gfx.mouse_x - self.ldragx
       local dy = gfx.mouse_y - self.ldragy
@@ -3887,8 +3893,10 @@ function machineView:handleDrag()
     end
     self.ldragx = gfx.mouse_x
     self.ldragy = gfx.mouse_y
+    return true
   else
     self.ldragx = nil
+    return captured
   end 
 end
 
