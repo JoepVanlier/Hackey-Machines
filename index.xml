@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Routing tools" commit="b6fa18b17263de1efb9ddb949e315f1bd7178f8e">
+<index version="1" name="Routing tools" commit="cc64e821f93feaaa352a0c56481b94c66978f87c">
   <category name="MachineView">
     <reapack name="MachineView_exec.lua" type="script" desc="Hackey-Machines: An interface plugin for REAPER 5.x and up designed to mimick the machine editor in Jeskola Buzz.">
       <metadata>
@@ -292,6 +292,9 @@ here
       </version>
       <version name="0.87" author=": Joep Vanlier" time="2025-11-08T14:32:34Z">
         <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/b6fa18b17263de1efb9ddb949e315f1bd7178f8e/MachineView/MachineView_exec.lua</source>
+      </version>
+      <version name="0.88" author=": Joep Vanlier" time="2026-01-01T22:56:22Z">
+        <source main="main">https://github.com/JoepVanlier/Hackey-Machines/raw/cc64e821f93feaaa352a0c56481b94c66978f87c/MachineView/MachineView_exec.lua</source>
       </version>
     </reapack>
     <reapack name="OpenMachineView.lua" type="script" desc="Hackey-Machines Loader">
