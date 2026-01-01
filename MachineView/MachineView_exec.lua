@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.87
+@version 0.88
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,8 @@
 
 --[[
  * Changelog
+ * v0.88 (2026-01-01)
+   + Add option to pan with spacebar instead of alt.
  * v0.87 (2025-11-08)
    + Add scrolling options for trackpad compatibility (alt/option + drag)
    + Fixed bug where two mouse clicks were required to drag a region.
@@ -292,7 +294,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.87"
+scriptName = "Hackey Machines v0.88"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
 gfx.ext_retina = 1
@@ -415,6 +417,8 @@ keymapNames[1] = 'foxAsteria'
 
 local function initializeKeys( keymap )
   -- 0 must be off, 1 must be on, 2 = don't care; keystroke nil means, don't check
+  -- Note that positive keystrokes signal that the previous key should not be held
+  -- whereas a negative one is used for a continuous hold style
   --                               LMB   RMB   MMB   DBL   CTRL    ALT   SHIFT   Keycode
   keys.openSinkControl    = {        1,    2,    2,    2,     2,     2,      2,      nil }    -- lmb
   keys.openSinkControl2   = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- rmb
@@ -431,6 +435,7 @@ local function initializeKeys( keymap )
   keys.additiveSelect     = keys.multiSelect                                                  -- ctrl + drag select additively adds machines
   keys.drag               = {        2,    2,    1,    2,     2,     2,      2,      nil }    -- drag field of view (mmb)
   keys.drag2              = {        1,    2,    2,    2,     2,     1,      2,      nil }    -- drag field of view (ctrl + lmb)
+  keys.drag3              = {        1,    2,    2,    2,     2,     2,      2,      -32 }     -- drag field of view (space + lmb)
   keys.addMachine         = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- add machine (rmb)
   keys.movetcp            = {        2,    2,    2,    2,     2,     2,      2,      116 }          -- toggle move tcp
   keys.movemixer          = {        2,    2,    2,    2,     2,     2,      2,      109 }          -- toggle move mixer
@@ -539,7 +544,7 @@ local function initializeKeys( keymap )
     
     keys.addMachine         = {        2,    2,    1,    2,     2,     2,      2,      nil }    -- add machine (mmb)
     keys.drag               = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- drag field of view (rmb)
-    keys.drag2              = {        1,    2,    2,    2,     2,     1,      2,      nil }    -- drag field of view (ctrl + lmb)
+    keys.drag2              = {        1,    2,    2,    2,     2,     1,      2,      nil }    -- drag field of view (alt + lmb)
     
     help = {
       {"Shift drag machine", "Connect machines"},    
@@ -690,6 +695,7 @@ function tprint (tbl, indent, maxindent, verbose)
   end
 end 
 
+prevStatus = {}
 local function inputs( name, dbl )
   -- Bitmask oddly enough doesn't behave as expected
   local checkMask = keys[name]
@@ -705,8 +711,15 @@ local function inputs( name, dbl )
             if ( checkMask[6] == alt or ( checkMask[6] == 2 ) ) then
               if ( checkMask[7] == shift or ( checkMask[7] == 2 ) ) then
                 if ( checkMask[8] ) then
-                  if ( checkMask[8] == lastChar and prevChar == 0 ) then
+                  local keyCode = math.abs(checkMask[8])
+                  local keyDown = gfx.getchar(keyCode) == 1
+                  if ( keyDown and ((checkMask[8] < 0) or (not prevStatus[keyCode]))) then
+                    prevStatus[keyCode] = 1
                     return true
+                  else
+                    if not keyDown then
+                      prevStatus[keyCode] = nil
+                    end
                   end
                 else
                   return true
@@ -3883,7 +3896,7 @@ end
 
 
 function machineView:handleDrag(captured)
-  if ( not captured and (inputs('drag') or inputs('drag2')) ) then
+  if ( not captured and (inputs('drag') or inputs('drag2') or inputs('drag3')) ) then
     if ( self.ldragx ) then
       local dx = gfx.mouse_x - self.ldragx
       local dy = gfx.mouse_y - self.ldragy
