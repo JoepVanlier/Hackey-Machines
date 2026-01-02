@@ -4,7 +4,7 @@
 @links
   https://github.com/JoepVanlier/Hackey-Machines
 @license MIT
-@version 0.88
+@version 0.89
 @screenshot 
   https://i.imgur.com/WP1kY6h.png
 @about 
@@ -27,6 +27,9 @@
 
 --[[
  * Changelog
+ * v0.89 (2026-01-02)
+   + Fix bug in multi machine selection.
+   + Add option to pan without holding mouse button when using FoxAsteria key map.
  * v0.88 (2026-01-01)
    + Add option to pan with spacebar instead of alt.
  * v0.87 (2025-11-08)
@@ -294,7 +297,7 @@
    + First upload. Basic functionality works, but cannot add new machines from the GUI yet.
 --]]
 
-scriptName = "Hackey Machines v0.88"
+scriptName = "Hackey Machines v0.89"
 hackeyTrackey = "Tracker tools/Tracker/tracker.lua"
 
 gfx.ext_retina = 1
@@ -545,6 +548,7 @@ local function initializeKeys( keymap )
     keys.addMachine         = {        2,    2,    1,    2,     2,     2,      2,      nil }    -- add machine (mmb)
     keys.drag               = {        2,    1,    2,    2,     2,     2,      2,      nil }    -- drag field of view (rmb)
     keys.drag2              = {        1,    2,    2,    2,     2,     1,      2,      nil }    -- drag field of view (alt + lmb)
+    keys.drag3              = {        2,    2,    2,    2,     2,     2,      2,      -32 }    -- drag field of view (space)
     
     help = {
       {"Shift drag machine", "Connect machines"},    
@@ -3757,7 +3761,7 @@ function machineView:moveObjects( diffx, diffy )
 end
 
 function machineView:selectMachines()
-  if ( gfx.mouse_cap & 1 ) > 0 then
+  if ( ( gfx.mouse_cap & 1 ) > 0 ) or ( ( last_cap & 1 ) > 0 ) then
     self.dragSelect[3] = self.dragSelect[3] + .05
     if ( self.dragSelect[3] > 0.3 ) then
       self.dragSelect[3] = 0.3
